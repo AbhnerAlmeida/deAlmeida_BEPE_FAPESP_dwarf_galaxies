@@ -1,4 +1,5 @@
-#What drives the corpulence of dwarf galaxies?
+WHAT DRIVES THE CORPULENCE OF DWARF GALAXIES? 
+
 Data repository for the (Research Internships Abroad) BEPE project granted by (São Paulo Research Foundation - Brazil) FAPESP:
 Process number: 2022/05059-2
 Duration: 24/10/2022 a 23/10/2023

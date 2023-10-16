@@ -19,6 +19,7 @@ from matplotlib.ticker import FixedLocator, FixedFormatter
 from matplotlib.ticker import FuncFormatter
 from matplotlib.offsetbox import AnchoredText
 from matplotlib.lines import Line2D
+from scipy.interpolate import interp1d
 
 
 # local
@@ -399,17 +400,14 @@ def PlotMedianEvolution(names, columns, rows, Type='Evolution', Xparam=['Time'],
 
                 if Type == 'Evolution':
                     if ColumnPlot:
-                        titlename = column
                         param = row
                         data = datas[i][j]
                         dataerr = dataserr[i][j]
                     else:
-                        titlename = row
                         param = column
                         data = datas[j][i]
                         dataerr = dataserr[j][i]
                 elif Type == 'CoEvolution':
-                    titlename = column
                     param = row
                     if ColumnPlot:
                         xparam = Xparam[i]
@@ -461,12 +459,10 @@ def PlotMedianEvolution(names, columns, rows, Type='Evolution', Xparam=['Time'],
                     for k, paramname in enumerate(row):
                         if Type == 'Evolution':
                             if ColumnPlot:
-                                titlename = column
                                 param = paramname
                                 data = datasAll[i][k][j]
                                 dataerr = dataserrAll[i][k][j]
                             else:
-                                titlename = paramname
                                 param = column
                                 data = datasAll[i][j][k]
                                 dataerr = dataserrAll[i][j][k]
@@ -474,13 +470,11 @@ def PlotMedianEvolution(names, columns, rows, Type='Evolution', Xparam=['Time'],
     
                             if ColumnPlot:
                                 xparam = Xparam[i]
-                                titlename = column
                                 param = paramname
                                 dataX = datasX[m][j]
                                 data = datasY[k][j]
     
                             else:
-                                titlename = paramname
                                 param = column
                                 param = paramname
                                 dataX = datasX[i][j]
@@ -806,7 +800,6 @@ def PlotCustom(names, columns, rows, dataMarker=None, dataLine=None, IDs=None, t
 
                 if Type == 'Evolution':
                     if ColumnPlot:
-                        titlename = column
                         param = row
                         data = datas[i][j]
                         dataerr = dataserr[i][j]
@@ -822,7 +815,6 @@ def PlotCustom(names, columns, rows, dataMarker=None, dataLine=None, IDs=None, t
                             datalinevalues = datasLine[0][j]
 
                     else:
-                        titlename = row
                         param = column
                         data = datas[j][i]
                         dataerr = dataserr[j][i]
@@ -837,7 +829,6 @@ def PlotCustom(names, columns, rows, dataMarker=None, dataLine=None, IDs=None, t
                             datalinevalues = datasLine[0][i]
 
                 elif Type == 'CoEvolution':
-                    titlename = column
                     param = row
                     if ColumnPlot:
                         xparam = Xparam
@@ -983,12 +974,10 @@ def PlotCustom(names, columns, rows, dataMarker=None, dataLine=None, IDs=None, t
                 for k, paramname in enumerate(row):
                     if Type == 'Evolution':
                         if ColumnPlot:
-                            titlename = column
                             param = paramname
                             data = datas[k][j]
                             dataerr = dataserr[k][j]
                         else:
-                            titlename = paramname
                             param = column
                             data = datas[j][k]
                             dataerr = dataserr[j][k]
@@ -996,13 +985,11 @@ def PlotCustom(names, columns, rows, dataMarker=None, dataLine=None, IDs=None, t
 
                         if ColumnPlot:
                             xparam = Xparam
-                            titlename = column
                             param = paramname
                             dataX = datasX[0][j]
                             data = datasY[k][j]
 
                         else:
-                            titlename = paramname
                             param = column
                             xparam = Xparam[i]
                             param = paramname
@@ -1604,10 +1591,11 @@ def PlotID(columns, rows, IDs, dataMarker=None, dataLine=None, Type='Evolution',
 ####################################################################################################
 ####################################################################################################
 
-def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=False, medianBins=False, medianAll=False, xlabelintext=False, All=None,
-                alphaScater=0.5, alphaAll=0.2,  alphaShade=0.3,  linewidth=1.2, fontTitle=28, fontlabel=26,  fontlegend=20, nboots=100, Nlim=100,  medianSample=False,
-                m='o', msize=30, quantile=0.95, legend=False, LegendNames=None, framealpha = 0.85,
-                savepath='fig/PlotScatter', savefigname='fig', dfName='Sample', SampleName='Samples',
+def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=[99], title=False, medianBins=False, medianAll=False, xlabelintext=False, All=None,
+                alphaScater=0.5, alphaAll=0.2,  alphaShade=0.3,  linewidth=1.2, fontTitle=28, fontlabel=26,  fontlegend=20, nboots=100, Nlim=100,  medianSample=False, MarkerSizes = None,
+                m='o', markersize=30, quantile=0.95, legend=False, LegendNames=None, framealpha = 0.85, q= 0.95,
+                savepath='fig/PlotScatter', savefigname='fig', dfName='Sample', SampleName='Name', 
+                columnspacing = 0.5, handletextpad = -0.5, labelspacing = 0.3,
                 bins=10, seed=16010504):
     '''
     Plot evolution for random sample
@@ -1623,7 +1611,7 @@ def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=Fals
     alphaScater : alpha for scatter plot. Default: 0.5. float
     alphaAll : alpha for scatter plot of all subhalos. Default: 0.2. float
     m : marker. Default: 'o'. str
-    msize : marker size. Default: 30. float
+    markersize : marker size. Default: 30. float
     quantile : median quantile to plot. Default: 0.95. float
     The rest is the same as the previous functions
     Returns
@@ -1647,31 +1635,31 @@ def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=Fals
 
     while len(ParamsX) != len(ParamsY):
         ParamsX.append(ParamX)
-    if columns == 'Snap':
+    if columns == ['Snap']:
         columns = snap
         dataX = makedata(names, columns, ParamsX, 'Snap',
                          snap=snap, SampleName=SampleName, dfName = dfName)
         dataY = makedata(names, columns, ParamsY, 'Snap',
                          snap=snap, SampleName=SampleName, dfName = dfName)
-        if All is not None:
-            dataAllx = makedata(All, columns, ParamsX, 'Snap',
-                                snap=snap, SampleName=SampleName, dfName = dfName)
-            dataAlly = makedata(All, columns, ParamsY, 'Snap',
-                                snap=snap, SampleName=SampleName, dfName = dfName)
+
     else:
         dataX = makedata(names, columns, ParamsX, Type,
                          snap=snap, SampleName=SampleName, dfName = dfName)
         dataY = makedata(names, columns, ParamsY, Type,
                          snap=snap, SampleName=SampleName, dfName = dfName)
-        if All is not None:
-            dataAllx = makedata(All, columns, ParamsX, Type,
-                                snap=snap, SampleName=SampleName, dfName = dfName)
-            dataAlly = makedata(All, columns, ParamsY, Type,
-                                snap=snap, SampleName=SampleName, dfName = dfName)
+        if MarkerSizes != None:
+            dataMarker = makedata(names, columns, MarkerSizes, Type,
+                             snap=snap, SampleName=SampleName, dfName = dfName)
+
 
     dfTime = WorkSample.extractDF('SNAPS_TIME')
+    All = WorkSample.extractDF('Samples/All')
+    All = All.loc[(All.SubhaloMassInRadType4.between(7.5, 10))]
+
 
     # Define axes
+    if len(snap) > 1:
+        columns = np.full(len(snap), 'Snap')
     plt.rcParams.update({'figure.figsize': (6*len(columns), 6*len(ParamsY))})
     fig = plt.figure()
     gs = fig.add_gridspec(len(ParamsY), len(columns), hspace=0, wspace=0)
@@ -1690,22 +1678,32 @@ def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=Fals
         for j, titlename in enumerate(columns):
 
             if All is not None:
-                axs[i][j].scatter(dataAllx[i][j], dataAlly[i][j], color=colors['All'],
-                                  edgecolor=colors['All'], alpha=alphaAll, marker='.', s=1)
+                xAll = All[ParamX]
+                yAll = All[param]
+
+                axs[i][j].scatter(xAll, yAll, color=colors['All'],
+                                  edgecolor=colors['All'], alpha=1., marker='.', s=10)
 
             for l, values in enumerate(dataY[i][j]):
+                                
 
-                if Nlim > len(values) - 1:
-                    Nlimlocal = len(values) - 1
+                if MarkerSizes != None:
+                    Markers = dataMarker[0][0][l]
+                    
+                    axs[i][j].scatter(dataX[i][j][l][Markers <= 1], values[Markers <= 1], color=colors.get(
+                            names[l] + 'ScatterPlot'), edgecolor='black', alpha=alphaScater, lw = linesthicker.get(names[l] + 'ScatterPlot'), 
+                            marker=markers.get(names[l]), s=20)
+                    axs[i][j].scatter(dataX[i][j][l][Markers == 2], values[Markers == 2], color=colors.get(
+                            names[l] + 'ScatterPlot'), edgecolor='black', alpha=alphaScater, lw = linesthicker.get(names[l] + 'ScatterPlot'), 
+                            marker=markers.get(names[l]), s=45)
+                    axs[i][j].scatter(dataX[i][j][l][Markers >= 3], values[Markers >= 3], color=colors.get(
+                            names[l] + 'ScatterPlot'), edgecolor='black', alpha=alphaScater, lw = linesthicker.get(names[l] + 'ScatterPlot'), 
+                            marker=markers.get(names[l]), s=120)
+
+
                 else:
-                    Nlimlocal = Nlim
-                if len(values) < 2:
-                    continue
-                args = np.random.choice(
-                    np.arange(len(values) - 1), size=Nlimlocal, replace=False)
-
-                axs[i][j].scatter(dataX[i][j][l][args], values[args], color=colors.get(
-                    names[l]), edgecolor='black', alpha=alphaScater, marker=m, s=msize)
+                    axs[i][j].scatter(dataX[i][j][l], values, color=colors.get(
+                            names[l] + 'ScatterPlot'), edgecolor='black', alpha=alphaScater, lw = linesthicker.get(names[l] + 'ScatterPlot'), marker=markers.get(names[l]), s=5*msize.get(names[l]+'ScatterPlot'))
 
                 if medianBins:
                     xmeanfinal, ymedian, yquantile95, yquantile5 = MATH.split_quantiles(
@@ -1724,16 +1722,15 @@ def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=Fals
 
             if medianSample:
                 
-                dfSample = WorkSample.extractDF('Samples/Sample')
-                SampleControl = dfSample.loc[(dfSample.SubhaloMassInRadType4.between(8.3, 9.3)) & (dfSample.SubhaloHalfmassRadType4 >= -0.35) & (dfSample.Flags == 1)]
+                dfSample = WorkSample.extractDF('Sample')
+                SampleControl = dfSample.loc[(dfSample.SubhaloMassInRadType4.between(8.4, 9.2)) & (dfSample.SubhaloHalfmassRadType4 >= -0.35) & (dfSample.Flags == 1)]
                 sizesControl = np.array([10**values for values in SampleControl.SubhaloHalfmassRadType4.values])
                 MassesControl = np.array([10**values for values in SampleControl.SubhaloMassInRadType4.values])
-                SigmaControl = np.array([10**values for values in SampleControl.SurfaceMassDensityType4.values])
 
 
                 xmeanfinal, ymedian, yquantile95, yquantile5 = MATH.split_quantiles(
-                    MassesControl ,sizesControl, total_bins=20, quantile=0.95)
-                
+                    MassesControl ,sizesControl, total_bins=20, quantile=q) 
+                 
                 xmeanfinal = np.log10(xmeanfinal)
                 ymedian = np.log10(ymedian)
                 yquantile95 = np.log10(yquantile95)
@@ -1747,21 +1744,42 @@ def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=Fals
             # Plot details
 
             axs[i][j].grid(True, color="grey",  which="major", linestyle="-.")
-            axs[i][j].set_ylim(limin.get(param), limmax.get(param))
+            if param == 'Group_M_Crit200':
+                if 'Central' in titlename:
+                    axs[i][j].set_ylim(limin.get(param+ 'Central'), limmax.get(param+ 'Central'))
+            else:
+                    axs[i][j].set_ylim(limin.get(param+ 'Scatter'), limmax.get(param+ 'Scatter'))
 
-            if medianSample and ParamX == 'SubhaloMassInRadType4':
+            axs[i][j].set_yscale(scales.get(param, 'linear'))
+
+            if scales.get(param) == 'log':
+                axs[i][j].yaxis.set_major_formatter(
+                    FuncFormatter(format_func_loglog))
+
+            if  ParamX == 'SubhaloMassInRadType4':
                 axs[i][j].axvline(
-                    8.3, ls='--', color='tab:red', linewidth=linewidth)
+                    8.4, ls='--', color='tab:red', linewidth=linewidth)
                 axs[i][j].axvline(
-                    9.3, ls='--', color='tab:red', linewidth=linewidth)
+                    9.2, ls='--', color='tab:red', linewidth=linewidth)
 
             if j == 0 and i == 0:
                 if legend:
-                    if len(LegendNames) == 1:
+                    if len(LegendNames) >= 1:
                         custom_lines, label, ncol, mult = Legend(
                             LegendNames[0])
                         axs[i][j].legend(
-                            custom_lines, label, ncol=ncol, fontsize=mult*fontlegend, framealpha=framealpha)
+                            custom_lines, label, ncol=ncol, fontsize=mult*fontlegend, framealpha=framealpha, 
+                            columnspacing = columnspacing, handletextpad = handletextpad, labelspacing = labelspacing)
+                        
+            if j == 1 and i == 0:
+                if legend:
+                    if len(LegendNames) > 1:
+                        custom_lines, label, ncol, mult = Legend(
+                            LegendNames[1])
+                        axs[i][j].legend(
+                            custom_lines, label, ncol=ncol, fontsize=mult*fontlegend, 
+                            columnspacing = columnspacing, handletextpad = handletextpad, labelspacing = labelspacing)
+
 
             if j == 0:
                 axs[i][j].set_ylabel(labels.get(param), fontsize=fontlabel)
@@ -1777,16 +1795,28 @@ def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=Fals
                     axs[i][j].add_artist(anchored_text)
 
             if i == 0:
-                if columns == 'Snap':
+                if columns[j] == 'Snap':
                     axs[i][j].set_title(
-                        r'z = %.1f' % dfTime.z.loc[dfTime.Snap == titlename].values[0], fontsize=fontTitle)
+                        r'$z = %.1f$' % dfTime.z.loc[dfTime.Snap == snap[j]].values[0], fontsize=fontTitle)
                 if title:
                     axs[i][j].set_title(titles.get(
-                        titlename), fontsize=fontTitle)
+                        title[j], title[j]), fontsize=fontTitle)
 
             if i == len(ParamsY) - 1:
                 axs[i][j].set_xlabel(labels.get(ParamX), fontsize=fontlabel)
-                axs[i][j].set_xlim(limin.get(ParamX), limmax.get(ParamX))
+
+                axs[i][j].set_xscale(scales.get(ParamX, 'linear'))
+                if scales.get(ParamX) == 'log':
+                    axs[i][j].xaxis.set_major_formatter(
+                        FuncFormatter(format_func_loglog))
+                if param == 'Group_M_Crit200':
+                    if 'Central' in titlename:
+                        axs[i][j].set_xlim(limin.get(ParamX+ 'Central'), limmax.get(ParamX+ 'Central'))
+                elif ParamX == 'SubhaloMassInRadType4':
+                        axs[i][j].set_xlim(8.2, 9.4)
+                else:
+                       
+                    axs[i][j].set_xlim(limin.get(ParamX+ 'Scatter'), limmax.get(ParamX+ 'Scatter'))
                 axs[i][j].tick_params(axis='x', labelsize=0.85*fontlabel)
 
     savefig(savepath, savefigname)
@@ -1796,11 +1826,12 @@ def PlotScatter(names, columns, ParamX, ParamsY,  Type='z0', snap=99, title=Fals
 ####################################################################################################
 ####################################################################################################
 
-def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='Original', cumulative=False, title=False, xlabelintext=False, 
-                framealpha = 0.95, linewidth=0.75, fontTitle=28, fontlabel=24,  fontlegend=18, nboots=100, Nlim=100,  
-                quantile=0.95, rmaxlim=120, norm=False, legend=False, LegendNames=None, line=False,
+def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='All', cumulative=False, title=False, xlabelintext=False, 
+                framealpha = 0.95, linewidth=1.2, fontTitle=28, fontlabel=24,  fontlegend=18, nboots=100, Nlim=100,  
+                quantile=0.95, rmaxlim=120, norm=False, legend=False, LegendNames=None, line=False, 
+                columnspacing = 0.7, handletextpad = 0.4, labelspacing = 0.3, handlelength = 1.0,
                 savepath='fig/PlotProfile', savefigname='fig', dfName='Sample', SampleName='Samples',  loc='best',
-                nbins=25, seed=16010504):
+                nbins=25, seed=16010504, TRANSPARENT = False):
     '''
     Plot radial profiles
     Parameters
@@ -1818,7 +1849,7 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
     The rest is the same as the previous functions
     Returns
     -------
-    Requested Evolution or Co-Evolution plot
+    Requested Evolution or Co-Evolution plot''
     -------
     Author: Abhner P. de Almeida (abhner.almeida AAT usp.br)
     '''
@@ -1865,19 +1896,14 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
         if PartTypes[i] == 'PartType1' or PartTypes[i] == 'DM':
             dFHalfRad = WorkSample.extractDF(
                 'SubhaloHalfmassRadType1', PATH='./data/Evolution/')
+            
+        if 'Galactic' in Condition:
+            dFHalfRadGas = WorkSample.extractDF(
+                'SubhaloHalfmassRadType0', PATH='./data/Evolution/')
 
         for l, ID in enumerate(IDs):
             Rads = np.array([])
-            galactic = np.array([])
-            ICGM = np.array([])
-            OCGM = np.array([])
-
-            galacticerr = np.array([])
-            ICGMerr = np.array([])
-            OCGMerr = np.array([])
-
-            radgal = np.array([])
-            radgas = np.array([])
+           
 
             for j, snap in enumerate(columns):
 
@@ -1899,22 +1925,27 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
                 Rads = np.array([])
 
                 for idValue in ID:
-                    HalfRad = dFHalfRad[str(
-                        idValue)].loc[dFHalfRad.Snap == snap].values[0]
-                    Rads = np.append(Rads, 10**HalfRad)
+                    if 'Galactic' in Condition :
+                        HalfRadGas = dFHalfRadGas[str(idValue)].loc[dFHalfRadGas.Snap == snap].values[0]
+                        Rads = np.append(Rads, 10**HalfRadGas)
+                        
+                    else:
+                        HalfRad = dFHalfRad[str(
+                            idValue)].loc[dFHalfRad.Snap == snap].values[0]
+                        Rads = np.append(Rads, 10**HalfRad)
 
                 if PartTypes[i] == 'PartType4':
                     rmin = np.median(Rads)/5
                     rmax = np.median(Rads)*150
 
-                if PartTypes[i] == 'PartType0' or PartTypes[i] == 'gas':
+                if (PartTypes[i] == 'PartType0' or PartTypes[i] == 'gas') :
                     rmin = np.median(Rads)/300
                     rmax = np.median(Rads)*7
 
-                if PartTypes[i] == 'PartType1' or PartTypes[i] == 'DM':
+                if (PartTypes[i] == 'PartType1' or PartTypes[i] == 'DM') :
                     rmin = np.median(Rads)/300
                     rmax = np.median(Rads)*7
-
+                    
                 if rmax > rmaxlim or rmax == 0.:
                     rmax = rmaxlim
 
@@ -1926,52 +1957,98 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
 
                 if PartTypes[i] == 'PartType4' and rmin < 0.1:
                     rmin = 0.1
-
+                    
+                
                 if np.median(Rads) == 0:
                     continue
-                if row != 'sSFR' and row != 'joverR':
-                    try:
-                        df = pd.read_pickle('./data/' + 'Profiles/'+row+'/'+Condition +
-                                            '/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+'.pkl')
+                    
+                try:
+                    if row != 'sSFR' and row != 'joverR' and row != 'DensityGasOverR2' and row != 'DensityStarOverR2' and row != 'GFM_Metallicity_Zodot':
+
+                        if 'Central' in names[l]:
+                            df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+ row+'/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l] + Condition +'.pkl')
+                        elif 'Satellite' in names[l]:
+                            df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+row+'/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l] + Condition  +'.pkl')
+                        
+                        else:
+                            df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+row+'/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l] + Condition  +'.pkl')
+                        
                         rad = df.Rads.values
                         ymedian = df.ymedians.values
                         yerr = df.yerrs.values
-                    except:
-                        print('You don\'t have the '+row+' Profile dataframe')
-                        return
+                    
+                    elif row == 'sSFR':
+
+                            
+                        df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+'SFR'+'/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+ Condition + '.pkl')
+                        radSFR = df.Rads.values
+                        ymedianSFR = df.ymedians.values
+                        yerrSFR = df.yerrs.values
+
+                        df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+'Mstellar'+'/PartType4/'
+                                            +str(columns[j])+'/'+names[l]+ Condition + '.pkl')
+                        radMstellar = df.Rads.values
+                        ymedianMstellar = df.ymedians.values
+
+                        new_y = sp.interpolate.interp1d(
+                            radMstellar, ymedianMstellar, kind='cubic', fill_value='extrapolate')(radSFR)
+                        rad = radSFR
+                        ymedian = ymedianSFR / new_y
+                        yerr = yerrSFR / new_y
                         
-                elif row == 'sSFR':
+                    elif row == 'GFM_Metallicity_Zodot':
 
-                    df = pd.read_pickle('./data/' + 'Profiles/'+'SFR'+'/'+Condition +
-                                        '/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+'.pkl')
-                    radSFR = df.Rads.values
-                    ymedianSFR = df.ymedians.values
-                    yerrSFR = df.yerrs.values
+                            
+                        df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+'GFM_Metallicity'+'/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+ Condition + '.pkl')
+                        rad = df.Rads.values
+                        ymedian = df.ymedians.values / 0.0127
+                        yerr = df.yerrs.values  / 0.0127
 
-                    df = pd.read_pickle('./data/' + 'Profiles/'+'Mstellar'+'/' +
-                                        Condition+'/PartType4/'+str(columns[j])+'/'+names[l]+'.pkl')
-                    radMstellar = df.Rads.values
-                    ymedianMstellar = df.ymedians.values
-                    yerrMstellar = df.yerrs.values
+                      
 
-                    new_y = sp.interpolate.interp1d(
-                        radMstellar, ymedianMstellar, kind='cubic', fill_value='extrapolate')(radSFR)
-                    rad = radSFR
-                    ymedian = ymedianSFR / new_y
-                    yerr = yerrSFR / new_y
+                    elif row == 'joverR':
+                        
+                            
+                        df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+'j'+
+                                            '/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+ Condition + '.pkl')
+                        rad = df.Rads.values
+                        ymedian = df.ymedians.values
+                        yerr = df.yerrs.values
 
-                elif row == 'joverR':
+                        rad = rad
+                        ymedian = ymedian / rad
+                        yerr = yerr / rad
 
-                    df = pd.read_pickle('./data/' + 'Profiles/'+'j'+'/'+Condition +
-                                        '/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+'.pkl')
-                    rad = df.Rads.values
-                    ymedian = df.ymedians.values
-                    yerr = df.yerrs.values
+                    elif row == 'DensityGasOverR2':
+                        
+         
+                            
+                        df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+'DensityGas'+
+                                            '/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+ Condition + '.pkl')
+                        rad = df.Rads.values
+                        ymedian = df.ymedians.values
+                        yerr = df.yerrs.values
 
-                    rad = rad
-                    ymedian = ymedian / rad
-                    yerr = yerr / rad
+                        rad = rad
+                        ymedian = ymedian * rad**2
+                        yerr = yerr * rad**2
+                        
+                    elif row == 'DensityStarOverR2':
+         
+                            
+                        df = pd.read_pickle('./data/' + 'Profiles/'+ Condition + '/'+'DensityStar'+
+                                            '/'+PartTypes[i]+'/'+str(columns[j])+'/'+names[l]+ Condition + '.pkl')
+                        rad = df.Rads.values
+                        ymedian = df.ymedians.values
+                        yerr = df.yerrs.values
 
+                        rad = rad
+                        ymedian = ymedian * rad**2
+                        yerr = yerr * rad**2
+                except:
+                    continue
+                
+                    
                 argnan = np.argwhere(~np.isnan(rad)).T[0]
                 rad = rad[argnan]
                 ymedian = ymedian[argnan]
@@ -1986,7 +2063,8 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
                 rad = rad[argnan]
                 ymedian = ymedian[argnan]
                 yerr = yerr[argnan]
-
+                
+                
                 if cumulative and row in ['Mstellar', 'Mgas']:
                     ymedian = np.cumsum(ymedian)
                     if len(ymedian) == 0:
@@ -1997,16 +2075,28 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
 
                             yerr = yerr / np.max(ymedian)
                             ymedian = ymedian / np.max(ymedian)
-                axs[i][j].plot(rad, ymedian, color=colors.get(names[l]), ls=lines.get(
-                    names[l]), lw= 2.5*linesthicker.get(names[l], linewidth), dash_capstyle = capstyles.get(names[l], 'projecting'))
-                #axs[i][j].fill_between(rad, ymedian-yerr, ymedian+yerr, color = colors.get(names[l]), alpha = 0.2)
 
-                if line:
-
-                    axs[i][j].axvline(2*10**np.nanmedian(RadStars),
-                                      ls='--', color=colors.get(names[l]))
-                    axs[i][j].axvline(10**np.nanmedian(RadGas),
-                                      ls='--', color=colors.get(names[l]))
+                if len(rad) <= 2:
+                    axs[i][j].plot(rad, ymedian, color=colors.get(names[l] ), ls=lines.get(
+                        names[l] ), lw= 2.5*linesthicker.get(names[l], linewidth), dash_capstyle = capstyles.get(names[l], 'projecting'))
+                   
+                else:
+                    
+                    Func = interp1d(rad, ymedian, kind='linear', fill_value = 'extrapolate')
+                    x = np.geomspace(0.1, 70, 100)
+    
+                    axs[i][j].plot(x, Func(x), color=colors.get(names[l] ), ls=lines.get(
+                        names[l] ), lw= 2.5*linesthicker.get(names[l], linewidth), dash_capstyle = capstyles.get(names[l], 'projecting'))
+                   
+         
+                    if line and i == len(rows) - 1:
+                        axs[i][j].arrow(2*10**np.nanmedian(RadStars), 1e2, 0, -1e2, color=colors.get(
+                            names[l] , 'black'), ls=lines.get(names[l] + 'Profile', 'solid'), linewidth= 3 * linewidth, head_width=0.)
+                        
+                        #axs[i][j].axvline(,
+                                          #ls='--', color=colors.get(names[l]))
+                        #axs[i][j].axvline(10**np.nanmedian(RadGas),
+                                          #ls='--', color=colors.get(names[l]))
 
                 # Plot details
                 axs[i][j].grid(True, color="grey",
@@ -2021,38 +2111,72 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
                 else:
                     axs[i][j].set_ylim(limin.get(row), limmax.get(row))
                 axs[i][j].set_xlim(limin.get('rad'), limmax.get('rad'))
-
-                if j == 0 and i == 0:
-                    if legend:
-                        if len(LegendNames) >= 1:
-                            custom_lines, label, ncol, mult = Legend(
-                                LegendNames[0])
-                            axs[i][j].legend(
-                                custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha)
-
-                if j == 1 and i == 0:
-                    if legend:
-                        if len(LegendNames) > 1:
-                            custom_lines, label, ncol, mult = Legend(
-                                LegendNames[1])
-                            axs[i][j].legend(
-                                custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha)
-
-                if j == 2 and i == 0:
-                    if legend:
-                        if len(LegendNames) > 2:
-                            custom_lines, label, ncol, mult = Legend(
-                                LegendNames[2])
-                            axs[i][j].legend(
-                                custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha)
-
-                if j == 3 and i == 0:
-                    if legend:
-                        if len(LegendNames) > 3:
-                            custom_lines, label, ncol, mult = Legend(
-                                LegendNames[3])
-                            axs[i][j].legend(
-                                custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha)
+                
+                if legend:
+                    if len(LegendNames.shape) > 1:
+                        if i == 0:
+                            if legend:
+                                if j <= len(LegendNames[0]) - 1:
+                                    if LegendNames[0][j] == 'AnyNone':
+                                        None
+                                    else:
+                                        custom_lines, label, ncol, mult = Legend(
+                                            LegendNames[0][j], mult = 3)
+                                        axs[i][j].legend(
+                                            custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha, 
+                                            columnspacing = columnspacing, handlelength = handlelength, handletextpad = handletextpad, labelspacing = labelspacing)
+    
+                        if i == 1:
+                           if legend and  len(LegendNames) > 1:
+                               if j <= len(LegendNames[1]) - 1:
+                                   if LegendNames[1][j] == 'AnyNone':
+                                       None
+                                   else:
+                                       
+                                       custom_lines, label, ncol, mult = Legend(
+                                           LegendNames[1][j], mult = 3)
+                                       axs[i][j].legend(
+                                           custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha, 
+                                           columnspacing = columnspacing, handlelength = handlelength, handletextpad = handletextpad, labelspacing = labelspacing)
+                                    
+                                    
+                    else:
+    
+                        if j == 0 and i == 0:
+                            if legend:
+                                if len(LegendNames) >= 1:
+                                    custom_lines, label, ncol, mult = Legend(
+                                        LegendNames[0])
+                                    axs[i][j].legend(
+                                        custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha, 
+                                        columnspacing = columnspacing, handlelength = handlelength, handletextpad = handletextpad, labelspacing = labelspacing)
+        
+                        if j == 1 and i == 0:
+                            if legend:
+                                if len(LegendNames) > 1:
+                                    custom_lines, label, ncol, mult = Legend(
+                                        LegendNames[1])
+                                    axs[i][j].legend(
+                                        custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha, 
+                                        columnspacing = columnspacing, handlelength = handlelength,  handletextpad = handletextpad, labelspacing = labelspacing)
+        
+                        if j == 2 and i == 0:
+                            if legend:
+                                if len(LegendNames) > 2:
+                                    custom_lines, label, ncol, mult = Legend(
+                                        LegendNames[2])
+                                    axs[i][j].legend(
+                                        custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha, 
+                                        columnspacing = columnspacing, handletextpad = handletextpad, labelspacing = labelspacing)
+        
+                        if j == 3 and i == 0:
+                            if legend:
+                                if len(LegendNames) > 3:
+                                    custom_lines, label, ncol, mult = Legend(
+                                        LegendNames[3])
+                                    axs[i][j].legend(
+                                        custom_lines, label, ncol=ncol, loc=loc, fontsize=mult*fontlegend, framealpha = framealpha, 
+                                        columnspacing = columnspacing, handletextpad = handletextpad, labelspacing = labelspacing)
 
                 if j == 0:
                     if cumulative and row in ['Mstellar', 'Mgas']:
@@ -2094,7 +2218,7 @@ def PlotProfile(IDs, names, columns, rows, PartTypes,  ParamX='rad', Condition='
 
                 if i == 0:
                     axs[i][j].set_title(
-                        r'z = %.1f' % dfTime.z.loc[dfTime.Snap == snap].values[0], fontsize=fontTitle)
+                        r'$z = %.1f$' % dfTime.z.loc[dfTime.Snap == snap].values[0], fontsize=fontTitle)
 
                 if i == len(rows) - 1:
                     axs[i][j].set_xscale(scales.get(ParamX, 'linear'))
@@ -2142,7 +2266,7 @@ def savefig(savepath, savefigname):
 ####################################################################################################
 ####################################################################################################
 
-def Legend(names):
+def Legend(names,  mult = 2):
     '''
     make the legend
     Parameters
@@ -2160,32 +2284,39 @@ def Legend(names):
     for name in names:
         if 'Scatter' in name:
             name = name.replace('Scatter', '')
-            custom_lines.append(
-                Line2D([0], [0], color=colors[name], lw=0, marker=markers.get(name)))
+            print(name, colors[name + 'Scatter'], markers.get(name + 'Scatter'), msize.get(name + 'Legend'))
+            if 'Bad' in name or 'True' in name:
+                custom_lines.append(
+                    Line2D([0], [0], color=colors[name + 'Scatter'], linestyle = '', lw=0.5, marker=markers.get(name + 'Scatter'),markeredgewidth = 0.7, markersize = msize.get(name + 'Legend'), markeredgecolor = 'black'))
+                
+            else:
+                custom_lines.append(
+                    Line2D([0], [0], color=colors[name + 'Scatter'], lw=0, marker=markers.get(name + 'Scatter'), markersize = msize.get(name+ 'Legend'), markeredgecolor = 'k'))
             label.append(titles.get(name, name))
 
         elif name == 'None':
             custom_lines.append(Line2D([0], [0], lw=0))
             label.append('')
-            
-        elif 'Compact' in name and not 'Quantile' in name and not 'Subhalo' in name:
-            custom_lines.append(Line2D([0], [0], color=colors.get(
-                name+'Median', 'black'), ls=lines.get(name, 'solid'), lw=1.5 * linesthicker.get(name, 1), dash_capstyle = capstyles.get(name, 'projecting')))
-            label.append(titles.get(name, name))
         
-        elif 'ControlSample' in name and not 'Quantile' in name and not 'Subhalo' in name:
+        elif name == 'AnyNone':
+            continue
+   
+        elif name in ['Centrals:', 'Satellites:']:
+            custom_lines.append(Line2D([0], [0], lw=0))
+            label.append(name)
+        elif name in ['True', 'False']:
             custom_lines.append(Line2D([0], [0], color=colors.get(
-                name+'Median', 'black'), ls=lines.get(name, 'solid'), lw=1.5 * linesthicker.get(name, 1), dash_capstyle = capstyles.get(name, 'projecting')))
+                name, 'black'), ls=lines.get(name, 'solid'), lw=mult* linesthicker.get(name, 1), dash_capstyle = capstyles.get(name, 'projecting')))
             label.append(titles.get(name, name))
-            
+
         else:
             custom_lines.append(Line2D([0], [0], color=colors.get(
-                name, 'black'), ls=lines.get(name, 'solid'), lw=1.5 * linesthicker.get(name, 1), dash_capstyle = capstyles.get(name, 'projecting')))
+                name, 'black'), ls=lines.get(name, 'solid'), lw=mult * linesthicker.get(name, 1), dash_capstyle = capstyles.get(name, 'projecting')))
             label.append(titles.get(name, name))
 
     if len(names) < 4:
         ncol = 1
-        mult = 1
+        mult = 0.6
     elif len(names) <= 8:
         ncol = 2
         mult = 0.6
@@ -2193,6 +2324,7 @@ def Legend(names):
         ncol = 3
         mult = 0.5
     return custom_lines, label, ncol, mult
+
 
 ####################################################################################################
 ####################################################################################################
@@ -2215,34 +2347,48 @@ def makedata(names, columns, row, Type, snap=99, dfName='Sample', SampleName='Sa
     '''
     
     data = []
+    
+    if names[0] == 'All':
+        All = WorkSample.extractDF('Samples/All')
+        All = All.loc[(All.SubhaloMassInRadType4.between(7.5, 10))]
+
+    if Type == 'Snap':
+        if len(columns) == 1:
+            nameSec = columns[0]
+        else:
+            nameSec = ''
+        columns = snap
+        
     for i, param in enumerate(row):
         dataSplit = []
+
         for j, split in enumerate(columns):
             dataName = []
             for k, name in enumerate(names):
-                if Type == 'z0':
-                    try:
-                        values = WorkSample.makeDF(name + split, param)
-                        dataName.append(values.iloc[99 - snap].values)
-                    except:
-                        values = WorkSample.extractWithCondition(name + split)
-                        dataName.append(values[param].values)
-                if Type == 'Snap':
-                    values = WorkSample.makeDF(name + split, param)
+                if name == 'All':
+                    dataName.append(All[param].values)
+                elif Type == 'z0':
+
+                    values = WorkSample.extractWithCondition(name + split, dfName=dfName, SampleName=SampleName)
+                    dataName.append(values[param].values)
+                elif Type == 'Snap':
+                    values = WorkSample.makeDF(name + nameSec, param, dfName=dfName, SampleName=SampleName)
                     dataName.append(values.iloc[99 - split].values)
-                if Type == 'Sample':
+                elif Type == 'Sample':
                     try:
                         values = WorkSample.makeDF(
                             name + split, param, dfName=dfName, SampleName=SampleName)
-                        dataName.append(values.iloc[99 - snap].values)
+                        dataName.append(values.iloc[99 - snap[0]].values)
+                    
                     except:
                         values = WorkSample.extractWithCondition(
                             name + split, dfName=dfName, SampleName=SampleName)
                         dataName.append(values[param].values)
-
+                    
             dataSplit.append(dataName)
 
         data.append(dataSplit)
+
 
     return data
 
@@ -2439,71 +2585,117 @@ def binomialerrorplot(x,N,n, ax, color='k',marker='o',mec='k',capsize=0,capthick
 
 # dic for labels, scales ...
 
+
 labels = {  # Masses
-    'SubhaloMassInRadType0': r'$\log M_{\mathrm{gas}} [\mathrm{M_\odot}]$',
-    'SubhaloMassInRadType1': r'$\log M_{\mathrm{DM}} [\mathrm{M_\odot}]$',
-    'SubhaloMassInRadType4': r'$\log M_{\star} [\mathrm{M_\odot}]$',
-    'SubhaloMass': r'$\log M [\mathrm{M_\odot}]$',
-    'SubhaloMassType0': r'$\log M_{\mathrm{gas, all}} [\mathrm{M_\odot}]$',
-    'SubhaloMassType1': r'$\log M_{\mathrm{DM, all}} [\mathrm{M_\odot}]$',
-    'SubhaloMassType4': r'$\log M_{\star\mathrm{, all}} [\mathrm{M_\odot}]$',
-    'StellarMassInSitu': r'$\log M_{\mathrm{in-stiu}} [\mathrm{M_\odot}]$',
-    'StellarMassExSitu': r'$\log M_{\mathrm{ex-situ}} [\mathrm{M_\odot}]$',
-    'SubhaloBHMass': r'$\log M_{\mathrm{BH}} [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergers': r'$\log M_{\mathrm{mergers}} [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergersMajor': r'$\log M_{\mathrm{M mergers}} [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergersMinor': r'$\log M_{\mathrm{m mergers}} [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergersMinorAll': r'$\log M_{\mathrm{m mergers}} [\mathrm{M_\odot}]$',
-    'Group_M_Crit200':  r'$\log M_{200} [\mathrm{M_\odot}]$',
-    'Group_M_Crit200_WithoutCorrection':  r'$\log M_{200} [\mathrm{M_\odot}]$',
+    'SubhaloMassInRadType0': r'$\log(M_{\mathrm{gas}}/\mathrm{M_\odot})$',
+    'SubhaloMassInHalfRadType5': r'$\log(M_{\star, r_{1/2}}/\mathrm{M_\odot})$',
+
+    'SubhaloMassInRadType1': r'$\log(M_{\mathrm{DM}}/\mathrm{M_\odot})$',
+    'SubhaloMassInRadType4': r'$\log(M_{\star} / \mathrm{M_\odot})$',
+    'SubhaloMass': r'$\log M \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassType0': r'$\log M_{\mathrm{gas, all}} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassType1': r'$\log M_{\mathrm{DM, all}} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassType4': r'$\log M_{\star\mathrm{, all}} \, \, [\mathrm{M_\odot}]$',
+    'StellarMassInSitu': r'$\log M_{\mathrm{in-stiu}} \, \, [\mathrm{M_\odot}]$',
+    'StellarMassExSitu': r'$\log M_{\mathrm{ex-situ}} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloBHMass': r'BH occupation',
+    'StellarMassFromCompletedMergers': r'$\log M_{\mathrm{mergers}} \, \, [\mathrm{M_\odot}]$',
+    'StellarMassFromCompletedMergersMajor': r'$\log M_{\mathrm{M mergers}} \, \, [\mathrm{M_\odot}]$',
+    'StellarMassFromCompletedMergersMinor': r'$\log M_{\mathrm{m mergers}} \, \, [\mathrm{M_\odot}]$',
+    'StellarMassFromCompletedMergersMinorAll': r'$\log M_{\mathrm{m mergers}} \, \, [\mathrm{M_\odot}]$',
+    'Group_M_Crit200':  r'$\log M_{200} \, \, [\mathrm{M_\odot}]$',
+    'Group_M_Crit200_WithoutCorrection':  r'$\log M_{200} \, \, [\mathrm{M_\odot}]$',
     'MassType0Normalize': r'$M_\mathrm{gas} / M_{\mathrm{gas,}  z = 0}$',
     'MassType1Normalize':  r'$M_\mathrm{DM}  / M_{\mathrm{DM, }z = 0}$',
+    'fDMTot':  r'$M_\mathrm{DM}  / M$',
     'MassType4Normalize':  r'$M_\star / M_{\star, z = 0}$',
+    'HalfRadNormalized': r'$r_{1/2} / r_{1/2, z = 0}$',
     'MassExNormalize':  r'$M_{\mathrm{ex-situ}} / M_{\mathrm{ex-situ}, z = 0}$',
     'MassInNormalize':  r'$M_{\mathrm{in-situ}}/ M_{\mathrm{in-situ}, z = 0}$',
     'MassExNormalizeAll':  r'$M_{\mathrm{ex-situ}} / M_{\star, z = 0}$',
     'MassInNormalizeAll':  r'$M_{\mathrm{in-situ}}/ M_{\star, z = 0}$',
-    'DeltaMassType0Normalize': r'$d\ln M_\mathrm{gas} / d \ln t [\mathrm{M_\odot \; Gyr^{-1}}]$',
-    'DeltaMassType1Normalize': r'$d\ln M_\mathrm{DM} / d \ln t [\mathrm{M_\odot \; Gyr^{-1}}]$',
-    'DeltaMassType4Normalize': r'$d\ln M_\star / d \ln t [\mathrm{M_\odot \; Gyr^{-1}}]$',
+    'FracMassStarEx': r'$M_{\mathrm{ex-situ}}/ M_{\star}$',
+    'DeltaMassType0Normalize': r'$d\ln M_\mathrm{gas} / d \ln t \, \, [\mathrm{M_\odot \; Gyr^{-1}}]$',
+    'DeltaMassType1Normalize': r'$d\ln M_\mathrm{DM} / d \ln t \, \, [\mathrm{M_\odot \; Gyr^{-1}}]$',
+    'DeltaMassType4Normalize': r'$d\ln M_\star / d \ln t \, \, [\mathrm{M_\odot \; Gyr^{-1}}]$',
+    'StellarMassFromFlybys': r'$\log M_{\mathrm{fly-bys}} \, \, [\mathrm{M_\odot}]$',
+    
+    'MstarOverM200': r'$ M_{\star} / M_{200}$',
+    'NewLambda': r'$\lambda$',
 
     # SFR
-    'SubhalosSFRinHalfRad': r'$\log \mathrm{sSFR}_{r_{1/2}} [\mathrm{yr^{-1}}]$',
-    'SubhalosSFRinRad': r'$\log \mathrm{sSFR} [\mathrm{M_\odot \; yr^{-1}}]$',
-    'SubhalosSFRwithinHalfandRad': r'$\log \mathrm{sSFR}_{r_{1/2} < r < 2r_{1/2}} [\mathrm{M_\odot \; yr^{-1}}]$',
-    'SubhalosSFRwithinRadandAll': r'$\log \mathrm{sSFR}_{r > 2r_{1/2}} [\mathrm{M_\odot \; yr^{-1}}]$',
-    'sSFR': r'$\mathrm{sSFR} [\mathrm{yr^{-1}}]$',
-    'SFR': r'$\mathrm{SFR} [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFRinHalfRad': r'$\log \mathrm{sSFR}_{r_{1/2}} \, \, [\mathrm{yr^{-1}}]$',
+    'SubhalosSFRinRad': r'$\log \mathrm{sSFR} \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFRwithinHalfandRad': r'$\log \mathrm{sSFR}_{r_{1/2} < r < 2r_{1/2}} \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFRwithinRadandAll': r'$\log \mathrm{sSFR}_{r > 2r_{1/2}} \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
+    'sSFR': r'$\mathrm{sSFR} (r)\, \, [\mathrm{yr^{-1}}]$',
+    'GFM_Metallicity_Zodot': r'$Z/Z_\odot$',
+    'sSFRE': r'$\mathrm{SFR} (r) / M_{\mathrm{H}}\, \, [\mathrm{yr^{-1}}]$',
+
+    'SFR': r'$\mathrm{SFR} \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
 
     # Rads
-    'rad': r'$r [\mathrm{kpc}]$',
-    'SubhaloHalfmassRadType0': r'$\log r_{1/2, \mathrm{gas}} [\mathrm{kpc}]$',
-    'SubhaloHalfmassRadType1': r'$\log r_{1/2, \mathrm{DM}} [\mathrm{kpc}]$',
-    'SubhaloHalfmassRadType4': r'$\log r_{1/2} [\mathrm{kpc}]$',
+    'rad': r'$r \, \, [\mathrm{kpc}]$',
+    'SubhaloHalfmassRadType0': r'$\log(r_{1/2, \mathrm{gas}}/\mathrm{kpc})$',
+    'SubhaloHalfmassRadType1': r'$\log(r_{1/2, \mathrm{DM}}/\mathrm{kpc})$',
+    'SubhaloHalfmassRadType4': r'$\log(r_{1/2, \star}/\mathrm{kpc})$',
+    
+    'RandomRhalfi': r'$\log(r_{1/2 - i^, 2\mathrm{D} }/\mathrm{kpc})$',
+
+
     'r_over_R_Crit200': r'$R/R_{200}$',
     'r_over_R_Crit200_WithoutCorrection': r'$R/R_{200}$',
     'Pericenter': r'$R_\mathrm{per}/R_{200}$',
-    'AngMomentum': r'$J_{\mathrm{gas}} [\mathrm{M_\odot kpc^2 km^{-2}}]$',
-    'j': r'$j_{\mathrm{gas}} [\mathrm{kpc \; km  \; s^{-1}}]$',
-    'joverR': r'$j_{\mathrm{gas}} / r  \; [\mathrm{km  \; s^{-1}}]$',
-
+    'AngMomentum': r'$J_{\mathrm{gas}} \, \, [\mathrm{M_\odot kpc^2 km^{-2}}]$',
+    'j': r'$j_{\mathrm{gas}} \, \, [\mathrm{kpc \; km  \; s^{-1}}]$',
+    'joverR': r'$j_{\mathrm{gas}} (r) / r  \; \, \, [\mathrm{km  \; s^{-1}}]$',
+    'DensityStar': r'$\rho_{\star} (r)  \; \, \, [\mathrm{M_\odot  \; kpc^{-3}}]$',
+    'DensityGas': r'$\rho_{\mathrm{gas}} (r)  \; \, \, [\mathrm{M_\odot  \; kpc^{-3}}]$',
+    
+    'DensityStarOverR2': r'$\rho_{\star} (r)  r^2 \; \, \, [\mathrm{M_\odot  \; kpc^{-1}}]$',
+    'DensityGasOverR2':  r'$\rho_{\mathrm{gas}} (r)  r^2 \; \, \, [\mathrm{M_\odot  \; kpc^{-1}}]$',
 
     'vOvervvirl': r'$v / v_\mathrm{vir}$',
 
+    
     # Group
-    'LhardXrayGroupBH': r'$\log L_{\mathrm{_{\scriptsize  2-10 keV_{_{BH \; in \; Group}}}}}$ [erg s$^{-1}$]',
+    'LhardXrayGroupBH': r'$\log L_{\mathrm{_{\scriptsize  2-10 keV_{_{BH \; in \; Group}}}}}$ \, \, [erg s$^{-1}$]',
 
     # Mergers
     'NumMergersTotal': r'$N$ mergers',
     'NumMinorMergersTotal':  r'$N$ Minor Mergers',
     'NumMajorMergersTotal': r'$N$ Major Mergers',
+    
+    'MergerTotalRate': r'$N / \mathrm{Gyr}$',
+    'rOverR200Born': r'$(R/R_{200})_\mathrm{birth}$',
+    'MinorMergerTotalRate': r'$N_{\mathrm{intermediate \; merger}} / \mathrm{Gyr}$',
+    'MajorMergerTotalRate': r'$N_{\mathrm{major \; merger}}  / \mathrm{Gyr}$',
+
+    'MedianWithoutMerger': 'Time between \n Merger [Gyr]',
+    'MedianWithoutMajorMerger': 'Time between \n Major \n  Merger [Gyr]',
+    'MedianWithoutMinorMerger': 'Time between \n Intermediate \n Merger [Gyr]',
+    
+    'MeanWithoutMerger': 'Time between \n Merger [Gyr]',
+    'MeanWithoutMajorMerger': 'Time between \n Major Merger \ n[Gyr]',
+    'MeanWithoutMinorMerger': 'Time between \n Intermediate \n Merger [Gyr]',
 
     # Others
     'Time Infall': r'Time infall [Gyr]',
-    'StartBH': r'Seed BH [Gyr]',
-    'LastMerger': 'Last Merger \n [Gyr]',
+    'StartBH': r'Seed BH \, \, [Gyr]',
+    'LastMerger': 'Last Minor \n  Merger [Gyr]',
     'LastMajorMerger': 'Last Major \n Merger [Gyr]',
-    'LastMinorMerger': 'Last Minor \n Merger [Gyr]',
+    'LastMinorMerger': 'Last intermediate \n Merger [Gyr]',
+    'zMajorMerger': '$z$ of last  merger',
+    'zMinorMerger': '$z$ of last  merger',
+    'zMerger': '$z$ of last merger',
+    
+    
+    
+    'zMedianMajor': 'Median $z$' ,
+    'zMedianMerger': 'Median $z$' ,
+    'zMedianMinor': 'Median $z$' ,
+    
+    
     'MeanRedshift': r'Mean Merger Time [Gyr]',
     'SatelliteCount': r'$N_\mathrm{satellites}$',
     'Npericenter': r'$N_\mathrm{pericenter \; passages}$',
@@ -2511,164 +2703,293 @@ labels = {  # Masses
     'GroupNsubs': r'Number of satellites',
     'GroupNSubs': r'Number of satellites',
     'NumSatCent': r'Number of satellites',
-    'SubhaloSpin': r'$j [\mathrm{kpc \; km \; s^{-1}}]$',
+    'SubhaloSpin': r'$\log j \, \, [\mathrm{kpc \; km \; s^{-1}}]$',
 
     # Profiles
     'Age': r'Mean Age$_\star$ [Gyr]',
-    'RadVelocity': r'$v_\mathrm{r, gas} [\mathrm{km s}^{-1}]$',
-    'Mstellar': r'$ M_{\star}  [\mathrm{M_\odot}]$',
-    'MstellarCum': r'$ M_{\star} (<r) [\mathrm{M_\odot}]$',
+    'RadVelocity': r'$v_\mathrm{r, gas} (r) \, \, [\mathrm{km \, s}^{-1}]$',
+    'Mstellar': r'$ M_{\star}  \, \, [\mathrm{M_\odot}]$',
+    'MstellarCum': r'$ M_{\star} (<r) \, \, [\mathrm{M_\odot}]$',
     'MstellarNorm': r'$ M_{\star} (<r) / M_{\star, \mathrm{tot}}$',
-    'Mgas': r'$ M_{\mathrm{gas}}  [\mathrm{M_\odot}]$',
-    'MgasCum': r'$ M_{\mathrm{gas}} (<r) [\mathrm{M_\odot}]$',
+    'Mgas': r'$ M_{\mathrm{gas}}  \, \, [\mathrm{M_\odot}]$',
+    'MgasCum': r'$ M_{\mathrm{gas}} (<r) \, \, [\mathrm{M_\odot}]$',
     'MgasNorm': r'$ M_{\mathrm{gas}} (<r) / M_{\star, \mathrm{tot}}$',
 
-    'MassTensorEigenVals': r'$M_1 / \sqrt{M_2 M_3}$',
+    'MassTensorEigenVals': r'$\mu_1 / \sqrt{\mu_2 \mu_3}$',
+    'MassTensorEigenValsNew': r'$\mu_1 / \mu_3$',
 
+    
+    'AngMomMerger': r'$j_\mathrm{{merger}} / j_{\mathrm{max}}$',
+
+    'zInfall': r'$z$ of first infall',
+    'zInfallMinPericenter': r'$z$ at lowest pericenter',
+
+    'zFirstPericenter': '$z$ of first \n pericenter',
+
+    'ExMassEvolution':   r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType0Evolution':    r'$\log(M_{\mathrm{gas, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType1Evolution':  r'$\log(M_{\mathrm{DM, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType4Evolution':   r'$\log(M_{\star, \mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExSubhaloMassType0':    r'$\log(M_{\mathrm{gas, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExSubhaloMassType1':  r'$\log(M_{\mathrm{DM, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExSubhaloMassType4':   r'$\log(M_{\star, \mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'rToRNearYoung': '$d_{\mathrm{NNB}}$ [kpc]',
+
+    'DMFracBorn': r'$M_{\mathrm{DM, \; birth}}/M_{\mathrm{birth}}$ ',
+    
+    'NumPericenter': r'Passages through the pericenter',
+
+    
+    'GasFracBorn': r'$M_{\mathrm{gas, \; birth}}/M_{\mathrm{birth}}$ ',
+    'StarFracBorn': r'$M_{\mathrm{\star, \; birth}}/M_{\mathrm{birth}}$ ',
+    'GasFrac': r'$M_{\mathrm{gas}}/M$ ',
+    'StarFrac':  r'$M_{\mathrm{\star}}/M$ ',
+
+    'zBorn': r'$z_{\mathrm{birth}}$',
+    'tsincebirth': r'$t - t_\mathrm{birth} \; [\mathrm{Gyr}]$',
+    
+    'jProfile': r'$j_{\mathrm{gas}} \, \, [\mathrm{kpc \; km  \; s^{-1}}]$',
+    'logjProfile': r'$\log (j_{\mathrm{gas}} / \, \, [\mathrm{kpc \; km  \; s^{-1}}])$',
+    'M200Normalized': r'$M_{200} / M_{200, \; z = 0}$',
+    
+    'DMFracMax': r'$M_{\mathrm{DM, \;}z = 0} / M_{\mathrm{DM, \, max}}$',
+
+    'GasMassNormalized': r'$M_{\mathrm{gas}} / M_{\mathrm{gas, \, max}}$',
+
+    'DMMassNormalized': r'$M_{\mathrm{DM}} / M_{\mathrm{DM, \, max}}$',
+    'tlookInfallMinPericenter': r'$t_{\mathrm{look}}$ at lowest pericenter [Gyr]',
+
+    'StarMassNormalized': r'$M/ M_{\mathrm{\star , \, max}}$',
+
+    'DMFracMaxTot': r'$M_{\mathrm{DM, \;}z = 0} / M_{\mathrm{max}}$',
+    'rOverR200Min': r'$(R/R_{200})_\mathrm{min}$',
+    'rOverR200MinTrue': r'$(R/R_{200})_\mathrm{min}$',
+
+    'DMFrac': r'$M_{\mathrm{DM, \;}z = 0} / M_{z = 0}$',
+    'FracGasMass': 'Gas fraction',
+    'FracDMMass': 'DM fraction',
+    'FracStarMass': 'Stellar fraction',
+    
+    'RhalfOverMax': r'$r_{1/2}/ r_{1/2,\mathrm{\, max}}$',
+    'StarFracMax': r'$M_{\star, \, z = 0} / M_{\star, \mathrm{max}}$',
+    'SubhaloStarMetallicityHalfRad_z0': r'$Z / Z_\odot$',
+    'SubhaloStarMetallicity_z0': r'$Z / Z_\odot$',
+
+    'ProjectedTo3D': '',
+    
     None: 'Any'
 }
 
 texts = {  # Masses
-    'SubhaloMassInRadType0': r'$\log M_{\mathrm{gas}} [\mathrm{M_\odot}]$',
-    'SubhaloMassInRadType1': r'$\log M_{\mathrm{DM}} [\mathrm{M_\odot}]$',
-    'SubhaloMassInRadType4': r'$\log M_{\star} [\mathrm{M_\odot}]$',
-    'SubhaloMass': r'$\log M [\mathrm{M_\odot}]$',
-    'SubhaloMassType0': r'$\log M_{\mathrm{gas, all}} [\mathrm{M_\odot}]$',
-    'SubhaloMassType1': r'$\log M_{\mathrm{DM, all}} [\mathrm{M_\odot}]$',
-    'SubhaloMassType4': r'$\log M_{\star, all} [\mathrm{M_\odot}]$',
-    'SubhaloBHMass': r'$\log M_{\mathrm{BH}} [\mathrm{M_\odot}]$',
-    'StellarMassInSitu': r'$\log M_{\mathrm{in-stiu}} [\mathrm{M_\odot}]$',
-    'StellarMassExSitu': r'$\log M_{\mathrm{ex-situ}} [\mathrm{M_\odot}]$',
+    'SubhaloMassInRadType0': r'$\log M_{\mathrm{gas}} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassInRadType1': r'$\log M_{\mathrm{DM}} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassInRadType4': r'$\log M_{\star} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMass': r'$\log M \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassType0': r'$\log M_{\mathrm{gas, all}} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassType1': r'$\log M_{\mathrm{DM, all}} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloMassType4': r'$\log M_{\star, all} \, \, [\mathrm{M_\odot}]$',
+    'SubhaloBHMass': r'$\log M_{\mathrm{BH}} \, \, [\mathrm{M_\odot}]$',
+    'StellarMassInSitu': r'$\log M_{\mathrm{in-stiu}} \, \, [\mathrm{M_\odot}]$',
+    'StellarMassExSitu': r'$\log M_{\mathrm{ex-situ}} \, \, [\mathrm{M_\odot}]$',
     'StellarMassFromCompletedMergers': r'Mergers',
     'StellarMassFromCompletedMergersMajor': r'Major Mergers',
     'StellarMassFromCompletedMergersMinor': r'Minor Mergers',
     'StellarMassFromCompletedMergersMinorAll': r'All Minor Mergers',
-    'StellarMassExSitu': r'$\log M_{\mathrm{ex-situ}} [\mathrm{M_\odot}]$',
-    'Group_M_Crit200':  r'$\log M_{200} [\mathrm{M_\odot}]$',
-    'Group_M_Crit200_WithoutCorrection':  r'$\log M_{200} [\mathrm{M_\odot}]$',
+    'StellarMassExSitu': r'$\log M_{\mathrm{ex-situ}} \, \, [\mathrm{M_\odot}]$',
+    'Group_M_Crit200':  r'$\log M_{200} \, \, \, [\mathrm{M_\odot}]$',
+    'Group_M_Crit200_WithoutCorrection':  r'$\log M_{200} \, \, \, [\mathrm{M_\odot}]$',
     'MassType0Normalize': r'$M / M_{z = 0}$',
     'MassType1Normalize':  r'$M / M_{z = 0}$',
     'MassType4Normalize':  r'$M / M_{z = 0}$',
+    'HalfRadNormalized': r'$r_{1/2} / r_{1/2, z = 0}$',
+
     'MassExNormalize':  r'$M_\star / M_{\star, z = 0}$',
     'MassInNormalize':  r'$M_\star / M_{\star, z = 0}$',
     'MassExNormalizeAll':  r'$M_{\mathrm{ex-situ}} / M_{\star, z = 0}$',
     'MassInNormalizeAll':  r'$M_{\mathrm{in-situ}}/ M_{\star, z = 0}$',
+    'FracMassStarEx': r'$M_{\mathrm{ex-situ}}/ M_{\star}$',
     'DeltaMassType0Normalize': r'$d\ln M / d \ln t',
     'DeltaMassType1Normalize': r'$d\ln M / d \ln t',
     'DeltaMassType4Normalize': r'$d\ln M / d \ln t',
+    'rOverR200Born': r'$(R/R_{200})_\mathrm{birth}$',
 
 
     # SFR
-    'SubhalosSFRinHalfRad': r'$\log sSFR_{r_{1/2}} [\mathrm{M_\odot \; yr^{-1}}]$',
-    'SubhalosSFRinRad': r'$\log sSFR [\mathrm{M_\odot \; yr^{-1}}]$',
-    'SubhalosSFR': r'$\log sSFR_{\mathrm{all}}` [\mathrm{M_\odot \; yr^{-1}}]$',
-    'SubhalosSFRwithinHalfandRad': r'$\log sSFR_{r_{1/2} < r < 2r_{1/2}} [\mathrm{M_\odot \; yr^{-1}}]$',
-    'SubhalosSFRwithinRadandAll': r'$\log sSFR_{r > 2r_{1/2}} [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFRinHalfRad': r'$\log sSFR_{r_{1/2}} \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFRinRad': r'$\log sSFR \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFR': r'$\log sSFR_{\mathrm{all}}` \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFRwithinHalfandRad': r'$\log sSFR_{r_{1/2} < r < 2r_{1/2}} \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
+    'SubhalosSFRwithinRadandAll': r'$\log sSFR_{r > 2r_{1/2}} \, \, [\mathrm{M_\odot \; yr^{-1}}]$',
 
     'vOvervvirl': r'$v / v_\mathrm{vir}$',
 
 
+    'ExMassEvolution':   r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType0Evolution':    r'$\log(M_{\mathrm{gas, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType1Evolution':  r'$\log(M_{\mathrm{DM, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType4Evolution':   r'$\log(M_{\star, \mathrm{ex-situ}}/mathrm{M}_\odot)$',
+    
+    'ExSubhaloMassType0':    r'$\log(M_{\mathrm{gas, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExSubhaloMassType1':  r'$\log(M_{\mathrm{DM, \;ex-situ}}/\mathrm{M}_\odot)$',
+    'ExSubhaloMassType2':   r'$\log(M_{\star, \mathrm{ex-situ}}/mathrm{M}_\odot)$',
+
 
     # Rads
-    'SubhaloHalfmassRadType0': r'$\log r_{1/2, \mathrm{gas}} [\mathrm{kpc}]$',
-    'SubhaloHalfmassRadType1': r'$\log r_{1/2, \mathrm{DM}} [\mathrm{kpc}]$',
-    'SubhaloHalfmassRadType4': r'$\log r_{1/2} [\mathrm{kpc}]$',
+    'SubhaloHalfmassRadType0': r'$\log(r_{1/2, \mathrm{gas}}/\mathrm{kpc})$',
+    'SubhaloHalfmassRadType1': r'$\log(r_{1/2, \mathrm{DM}}/\mathrm{kpc})$',
+    'SubhaloHalfmassRadType4': r'$\log(r_{1/2, \star}/\mathrm{kpc})$',
+    
+    'RandomRhalfi': r'$\log(r_{1/2, 2D i}/\mathrm{kpc})$',
+
+
     'r_over_R_Crit200': r'$R/R_{200}$',
     'r_over_R_Crit200_WithoutCorrection': r'$R/R_{200}$',
+    'currentRoverR200': r'current $R/R_{200}$',
     'Pericenter': r'$R_\mathrm{per}/R_{200}$',
 
     # Group
-    'LhardXrayGroupBH': r'$\log L_{\mathrm{_{\scriptsize  2-10 keV_{_{BH \; in \; Group}}}}}$ [erg s$^{-1}$]',
+    'LhardXrayGroupBH': r'$\log L_{\mathrm{_{\scriptsize  2-10 keV_{_{BH \; in \; Group}}}}}$ \, \, [erg s$^{-1}$]',
 
     # Mergers
     'NumMergersTotal': r'$N$ mergers',
     'NumMinorMergersTotal':  r'$N$ Minor Mergers',
     'NumMajorMergersTotal': r'$N$ Major Mergers',
+    
+    'MergerTotalRate': r'$N / \mathrm{Gyr}$',
+    'MinorMergerTotalRate': r'$N_{\mathrm{intermediate merger}} / \mathrm{Gyr}$',
+    'MajorMergerTotalRate': r'$N_{\mathrm{major merger}}  / \mathrm{Gyr}$',
 
     # Others
     'TimeInfall': r'Time infall',
     'StartBH': r'Seed BH',
-    'LastMerger': r'Last Merger',
+    'LastMerger': r'Last Minor Merger',
     'LastMajorMerger': r'Last Major Merger',
-    'LastMinorMerger': r'Last Minor Merger',
+    'LastMinorMerger': r'Last Intermediate Merger',
+    'zMajorMerger': 'Major mergers',
+    'zMinorMerger': 'Intermediate mergers',
+    'zMerger': '$z$ of last \n minor \n merger',
+
     'SatelliteCount': r'Number of satellites',
     'Npericenter': r'Pericenter Passages',
     'LastPericenter': r'Last pericenter passage',
     'GroupNsubs': r'Number of satellites',
     'GroupNSubs': r'Number of satellites',
     'NumSatCent': r'Number of satellites',
+    'AngMomMerger': r'$j_\mathrm{{merger}} / j_{\mathrm{max}}$',
 
 
     # Profiles
     'Age': r'Mean Age [Gyr]',
-    'RadVelocity': r'$v_\mathrm{r} [\mathrm{km s}^{-1}]$',
+    'RadVelocity': r'$v_\mathrm{r} (r) \, \, [\mathrm{km \, s}^{-1}]$',
 
     'MassTensorEigenVals': r'$M_1 / \sqrt{M_2 M_3}$',
+    'MassTensorEigenValsNew': r'$\mu_1 / \mu_3$',
+
+    'rToRNearYoung': r'$r_{\mathrm{Nearest \;  at \;  the \;  birth}} $ [kpc]',
+
+    'zInfall': r'$z$ of first infall',
+    'zInfallMinPericenter': r'$z$ at lowest pericenter [Gyr]',
+    'tlookInfallMinPericenter': r'$t_{\mathrm{look}}$ at lowest pericenter',
+
+
+    'zFirstPericenter': r'$z$ of first pericenter',
+    'tsincebirth': r'$t - t_\mathrm{birth}$',
+    'M200Normalized': r'$M_{200} / M_{200, \; z = 0}$',
+    
+    'zMedianMajor': 'Major mergers' ,
+    'zMedianMerger': 'All mergers',
+    'zMedianMinor': 'Intermediate mergers',
+
 
 
     None: 'Any'
 }
 
 labelsequal = {  # Masses
-    'SubhaloMassInRadType0': r'$\log M [\mathrm{M_\odot}]$',
-    'SubhaloMassInRadType1': r'$\log M [\mathrm{M_\odot}]$',
-    'SubhaloMassInRadType4': r'$\log M [\mathrm{M_\odot}]$',
-    'SubhaloMass': r'$\log M [\mathrm{M_\odot}]$',
-    'SubhaloMassType0': r'$\log M_{\mathrm{all}} [\mathrm{M_\odot}]$',
-    'SubhaloMassType1': '$\log M_{\mathrm{all}} [\mathrm{M_\odot}]$',
-    'SubhaloMassType4': '$\log M_{\mathrm{all}} [\mathrm{M_\odot}]$',
-    'StellarMassInSitu': r'$\log M_\star [\mathrm{M_\odot}]$',
-    'StellarMassExSitu': r'$\log M_\star [\mathrm{M_\odot}]$',
-    'SubhaloBHMass': r'$\log M [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergers': r'$\log M [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergersMajor': r'$\log M [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergersMinor': r'$\log M [\mathrm{M_\odot}]$',
-    'StellarMassFromCompletedMergersMinorAll': r'$\log M [\mathrm{M_\odot}]$',
-    'Group_M_Crit200':  r'$\log M [\mathrm{M_\odot}]$',
-    'Group_M_Crit200_WithoutCorrection':  r'$\log M [\mathrm{M_\odot}]$',
+    'SubhaloMassInRadType0': r'$\log(M/\mathrm{M}_\odot)$',
+    'SubhaloMassInRadType1':  r'$\log(M/\mathrm{M}_\odot)$',
+    'SubhaloMassInRadType4':  r'$\log(M/\mathrm{M}_\odot)$',
+    'SubhaloMass':  r'$\log(M/\mathrm{M}_\odot)$',
+    'SubhaloMassType0': r'$\log(M/\mathrm{M}_\odot)$',
+    'SubhaloMassType1': r'$\log(M/\mathrm{M}_\odot)$',
+    'SubhaloMassType4': r'$\log(M/\mathrm{M}_\odot)$',
+    'StellarMassInSitu': r'$\log(M_\star/\mathrm{M}_\odot)$',
+    'StellarMassExSitu': r'$\log(M_\star/\mathrm{M}_\odot)$',
+    'SubhaloBHMass': r'$\log(M/\mathrm{M}_\odot)$',
+    'StellarMassFromCompletedMergers': r'$\log(M/\mathrm{M}_\odot)$',
+    'StellarMassFromCompletedMergersMajor': r'$\log(M/\mathrm{M}_\odot)$',
+    'StellarMassFromCompletedMergersMinor': r'$\log(M/\mathrm{M}_\odot)$',
+    'StellarMassFromCompletedMergersMinorAll': r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'Group_M_Crit200': r'$\log(M/\mathrm{M}_\odot)$',
+    'Group_M_Crit200_WithoutCorrection':  r'$\log(M/\mathrm{M}_\odot)$',
     'MassType0Normalize': r'$M / M_{z = 0}$',
     'MassType1Normalize':  r'$M / M_{z = 0}$',
     'MassType4Normalize':  r'$M / M_{z = 0}$',
-    'MassExNormalizeAll':  r'$M_{\mathrm{ex-situ}} / M_{z = 0}$',
+    'HalfRadNormalized': r'$r_{1/2} / r_{1/2, z = 0}$',
+
+    'MassExNormalizeAll':  r'Normalized $M_{\mathrm{ex-situ}}$',
     'MassInNormalizeAll':  r'$M_{\mathrm{in-situ}}/ M_{z = 0}$',
-    'MassExNormalize':  r'$M_\star / M_{\star, z = 0}$',
+    'MassExNormalize':  r'Normalized $M_{\mathrm{ex-situ}}$',
     'MassInNormalize':  r'$M_\star / M_{\star, z = 0}$',
-    'DeltaMassType0Normalize': r'$d\ln M / d \ln t [\mathrm{M_odot \; Gyr^{-1}}]$',
-    'DeltaMassType1Normalize': r'$d\ln M / d \ln t [\mathrm{M_odot \; Gyr^{-1}}]$',
-    'DeltaMassType4Normalize': r'$d\ln M / d \ln t [\mathrm{M_odot \; Gyr^{-1}}]$',
+    'FracMassStarEx': r'Normalized $M_{\mathrm{ex-situ}}$',
+    'DeltaMassType0Normalize': r'$d\ln M / d \ln t \, \, [\mathrm{M_odot \; Gyr^{-1}}]$',
+    'DeltaMassType1Normalize': r'$d\ln M / d \ln t \, \, [\mathrm{M_odot \; Gyr^{-1}}]$',
+    'DeltaMassType4Normalize': r'$d\ln M / d \ln t \, \, [\mathrm{M_odot \; Gyr^{-1}}]$',
+    'rOverR200Born': r'$(R/R_{200})_\mathrm{birth}$',
 
     # SFR
-    'SubhalosSFRinHalfRad': r'$\log \mathrm{sSFR} [\mathrm{yr^{-1}}]$',
-    'SubhalosSFRinRad': r'$\log \mathrm{sSFR} [\mathrm{yr^{-1}}]$',
-    'SubhalosSFR': r'$\log \mathrm{sSFR} [\mathrm{yr^{-1}}]$',
-    'SubhalosSFRwithinHalfandRad': r'$\log \mathrm{sSFR} [\mathrm{yr^{-1}}]$',
-    'SubhalosSFRwithinRadandAll': r'$\log \mathrm{sSFR} [\mathrm{yr^{-1}}]$',
+    'SubhalosSFRinHalfRad': r'$\log \mathrm{sSFR} \, \, [\mathrm{yr^{-1}}]$',
+    'SubhalosSFRinRad': r'$\log \mathrm{sSFR} \, \, [\mathrm{yr^{-1}}]$',
+    'SubhalosSFR': r'$\log \mathrm{sSFR} \, \, [\mathrm{yr^{-1}}]$',
+    'SubhalosSFRwithinHalfandRad': r'$\log \mathrm{sSFR} \, \, [\mathrm{yr^{-1}}]$',
+    'SubhalosSFRwithinRadandAll': r'$\log \mathrm{sSFR} \, \, [\mathrm{yr^{-1}}]$',
 
     'vOvervvirl': r'$v / v_\mathrm{vir}$',
 
-
+    'ExMassEvolution':   r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType0Evolution':    r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType1Evolution':  r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExMassType4Evolution':   r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    
+    'ExSubhaloMassType0':    r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExSubhaloMassType1':  r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    'ExSubhaloMassType4':   r'$\log(M_{\mathrm{ex-situ}}/\mathrm{M}_\odot)$',
+    
+    
     # Rads
-    'SubhaloHalfmassRadType0': r'$\log r [\mathrm{kpc}]$',
-    'SubhaloHalfmassRadType1': r'$\log r [\mathrm{kpc}]$',
-    'SubhaloHalfmassRadType4': r'$\log r [\mathrm{kpc}]$',
+    
+    'SubhaloHalfmassRadType0': r'$\log(r_{1/2}/\mathrm{kpc})$',
+    'SubhaloHalfmassRadType1': r'$\log(r_{1/2}/\mathrm{kpc})$',
+    'SubhaloHalfmassRadType4': r'$\log(r_{1/2}/\mathrm{kpc})$',
+    'RandomRhalfi': r'$\log(r_{1/2, 2D i}/\mathrm{kpc})$',
+
     'r_over_R_Crit200': r'$R/R_{200}$',
     'r_over_R_Crit200_WithoutCorrection': r'$R/R_{200}$',
     'Pericenter': r'$R_\mathrm{per}/R_{200}$',
 
     # Group
-    'LhardXrayGroupBH': r'$\log L_{\mathrm{_{\scriptsize  2-10 keV_{_{BH \; in \; Group}}}}}$ [erg s$^{-1}$]',
+    'LhardXrayGroupBH': r'$\log L_{\mathrm{_{\scriptsize  2-10 keV_{_{BH \; in \; Group}}}}}$ \, \, [erg s$^{-1}$]',
 
     # Mergers
     'NumMergersTotal': r'$N$',
     'NumMinorMergersTotal': r'$N$',
     'NumMajorMergersTotal': r'$N$',
+    'AngMomMerger': r'$j_\mathrm{{merger}} / j_{\mathrm{max}}$',
 
+    'MergerTotalRate': r'$N / \mathrm{Gyr}$',
+    'MinorMergerTotalRate': r'$N / \mathrm{Gyr}$',
+    'MajorMergerTotalRate': r'$N / \mathrm{Gyr}$',
+    
     # Others
     'TimeInfall': r'Time infall',
     'StartBH': r'Time seed BH',
     'LastMerger': 'Time of  last \n merger [Gyr]',
-    'LastMajorMerger': 'Time of last \n merger [Gyr]',
-    'LastMinorMerger': 'Time of last \n merger [Gyr]',
+    'LastMajorMerger': 'Time of last \n merger  [Gyr]',
+    'LastMinorMerger': 'Time of last \n merger  [Gyr]',
+       'zMajorMerger': '$z$ of last \n merger',
+       'zMinorMerger': '$z$ of last \n merger',
+       'zMerger': '$z$ of last \n merger',
+
     'SatelliteCount': r'N',
     'Npericenter': r'Pericenter Passages',
     'LastPericenter': r'Last pericenter passage',
@@ -2679,11 +3000,25 @@ labelsequal = {  # Masses
 
     # Profiles
     'Age': r'Mean Age [Gyr]',
-    'RadVelocity': r'$v_\mathrm{r} [\mathrm{km s}^{-1}]$',
+    'RadVelocity': r'$v_\mathrm{r} (r) \, \, [\mathrm{km  \,s}^{-1}]$',
 
     'MassTensorEigenVals': r'$M_1 / \sqrt{M_2 M_3}$',
+    'rToRNearYoung': r'$r_{\mathrm{Nearest \;  at \;  the \;  birth}}$ [kpc]',
 
+    'zInfall': r'$z$ of first infall',
+    'zInfallMinPericenter': r'$z$ at lowest pericenter',
 
+    'zFirstPericenter': r'$z$ of first pericenter',
+    'tsincebirth': r'$t - t_\mathrm{birth}$',
+
+    'GasMassNormalized': r'$M / M_{\mathrm{max}}$',
+
+    'DMMassNormalized': r'$M / M_{\mathrm{max}}$',
+
+    'StarMassNormalized': r'$M / M_{\mathrm{max}}$',
+    'StarFracMax': r'$M / M_{\mathrm{max}}$',
+    
+    
     None: 'Any'
 }
 
@@ -2696,8 +3031,17 @@ scales = {  # Masses
     'SubhaloMassType1': 'linear',
     'SubhaloMassType4': 'linear',
     'SubhaloBHMass': 'linear',
+    'DMFracBorn': 'log',
+    'GasFracBorn': 'linear',
+    'StarFracBorn': 'linear',
+    'GasFrac':  'linear',
+    'StarFrac':  'linear',
+    'MstarOverM200': 'log',
+
+    'zBorn': 'log',
     'StellarMassInSitu': 'linear',
     'StellarMassExSitu': 'linear',
+    'StellarMassFromFlybys': 'linear',
     'StellarMassFromCompletedMergers': 'linear',
     'StellarMassFromCompletedMergersMajor': 'linear',
     'StellarMassFromCompletedMergersMinor': 'linear',
@@ -2706,12 +3050,15 @@ scales = {  # Masses
     'MassExNormalize':  'log',
     'MassInNormalize':  'log',
     'MassExNormalizeAll':  'log',
+    'FracMassStarEx': 'log',
     'MassInNormalizeAll':  'log',
     'Group_M_Crit200':  'linear',
     'Group_M_Crit200_WithoutCorrection':  'linear',
     'MassType0Normalize': 'log',
     'MassType1Normalize': 'log',
     'MassType4Normalize': 'log',
+    'HalfRadNormalized': 'log',
+
     'DeltaMassType0Normalize': 'linear',
     'DeltaMassType1Normalize': 'linear',
     'DeltaMassType4Normalize': 'linear',
@@ -2725,27 +3072,42 @@ scales = {  # Masses
 
     'vOvervvirl': 'linear',
 
+    'rOverR200Born': 'log',
+    
+    'zMedianMajor': 'log' ,
+    'zMedianMerger': 'log' ,
+    'zMedianMinor': 'log' ,
+    
+    'zMajorMerger': 'linear' ,
+    'zMinorMerger': 'linear' ,
+    'zMeger': 'log' ,
 
     # Rads
     'SubhaloHalfmassRadType0': 'linear',
     'SubhaloHalfmassRadType1': 'linear',
     'SubhaloHalfmassRadType4': 'linear',
     'r_over_R_Crit200': 'log',
-    'r_over_R_Crit200_WithoutCorrection': 'linear',
+    'r_over_R_Crit200_WithoutCorrection': 'log',
+    'currentRoverR200': 'log',
     'Pericenter': 'linear',
 
     # Group
     'LhardXrayGroupBH': 'linear',
-
+    'jProfile': 'log',
     # Mergers
     'NumMergersTotal': 'linear',
     'NumMinorMergersTotal': 'linear',
     'NumMajorMergersTotal': 'linear',
+    
+    'MergerTotalRate': 'log',
+    'MinorMergerTotalRate': 'log',
+    'MajorMergerTotalRate': 'log',
+
+
 
     # Others
     'TimeInfall': 'linear',
     'StartBH': 'linear',
-    'LastMerger': 'linear',
     'SatelliteCount': 'linear',
     'Npericenter': 'linear',
     'LastPericenter': 'linear',
@@ -2756,13 +3118,18 @@ scales = {  # Masses
     'deltaM200': 'log',
     'deltaMbaryon': 'log',
     'GroupNsubs': 'log',
-    'GroupNSubs': 'log',
+    'GroupNSubs': 'linear',
     'NumSatCent': 'log',
+    'M200Normalized': 'log',
 
 
     # Profiles
     'Age': 'linear',
     'sSFR': 'log',
+    'GFM_Metallicity_Zodot': 'log',
+
+    'sSFRE': 'log',
+
     'RadVelocity': 'linear',
     'rad': 'log',
     'SFR': 'log',
@@ -2771,202 +3138,414 @@ scales = {  # Masses
     'MstellarCum': 'log',
     'j': 'log',
     'joverR': 'linear',
+    'DensityStar': 'log',
+    'DensityGas': 'log',
+    'DensityStarOverR2': 'log',
+    'DensityGasOverR2': 'log',
     'Mgas': 'log',
     'MgasCum': 'log',
     'MgasNorm': 'linear',
     'Potential': 'symlog',
+    'rOverR200Min': 'log',
+    'rOverR200MinTrue': 'log',
 
+    'DMFracMaxTot': 'log',
+
+  'AngMomMedian': 'log',
+  'AngMomMax': 'log',
+  
+    'rToRNearYoung': 'log',
          'MassTensorEigenVals': 'linear',
+    'MassTensorEigenValsNew': 'linear',
+    
+    'GasMassNormalized': 'linear',
 
+    'DMMassNormalized': 'log',
+
+    'StarMassNormalized': 'log',
+    
+    'zInfallMinPericenter': 'log',
+
+    
+    'FracGasMass':'log',
+    'FracDMMass': 'log',
+    'FracStarMass': 'log',
+    'SubhaloStarMetallicity_z0': 'log',
+
+    #'zBorn': 'linear',
 
     None: 'linear'
 
 }
 
-markers = {  # Masses
-    'Compact': 'o',
-    'CompactQuantile': 'o',
-    'CompactQuantileOld': 'o',
-    'CompactYoung': 'o',
-    'CompactnBHOld': 'o',
-    'CompactBHOld': 'o',
-    'CompactLosesBHOld':  'o',
-    'CompactEarlierInfall': 'Compact \n Earlier Infall',
-    'CompactnBHYoung':  'o',
-    'CompactSatellite':  'o',
-    'CompactCentral':  'o',
-    'CompactSatelliteAll':  'o',
-    'CompactCentralAll':  'o',
-    'CompactOldSatelliteAll':  'o',
-    'CompactOldCentralAll':  'o',
+markers = { # Compact
+          'Normal': 'o', 
+          'NormalScatter': 'o',  
+          'NormalScatterPlot': 'o',     
+          'NormalTrueScatterPlot': 'o',  
+          'NormalFalseScatterPlot': 'o',  
+          # MBC
+          'MBC': 'o', 
+          'MBCScatter': 'o', 
+          'MBCScatterPlot': 'o',               
+          'MBCTrueScatterPlot': 'o',  
+          'MBCFalseScatterPlot': 'o',  
 
-    # Normal
-    'ControlSample': 'o',
-    'Normal': 'o',
-    'NormalnBHOld': 'o',
-    'NormalBHOld': 'o',
-    'NormalLosesBHOld':  'o',
-    'NormalSatellite':  'o',
-    'NormalCentral':  'o',
-    'NormalSatelliteAll':  'o',
-    'NormalCentralAll':  'o',
-    'NormalOldSatelliteAll':  'o',
-    'NormalOldCentralAll':  'o',
-    'ControlSamplenBHOld': 'o',
-    'ControlSampleBHOld': 'o',
-    'ControlSampleLosesBHOld':  'o',
-    'ControlSampleSatellite':  'o',
-    'ControlSampleCentral':  'o',
-    'ControlSampleSatelliteAll':  'o',
-    'ControlSampleCentralAll':  'o',
-    'ControlSampleOldSatelliteAll':  'o',
-    'ControlSampleOldCentralAll':  'o',
-    'ControlSampleBH': 'o',
-    'ControlSampleWithoutBH': 'o',
+            # Diffuse
+            'Diffuse': 'o', 
+            'DiffuseScatter': 'o', 
+            'DiffuseScatterPlot': 'o',               
+            'DiffuseTrueScatterPlot': 'o',  
+            'DiffuseFalseScatterPlot': 'o',  
 
-    # Diffuse
-    'Diffuse': 'o',
-    'DiffusenBHOld': 'o',
-    'DiffuseBHOld': 'o',
-    'DiffuseLosesBHOld':  'o',
-    'DiffuseSatellite': 'o',
-    'DiffuseCentral': 'o',
-    'DiffuseSatelliteAll': 'o',
-    'DiffuseCentralAll': 'o',
-    'DiffuseOldSatelliteAll': 'o',
-    'DiffuseOldCentralAll': 'o',
+          
+          # SBC
+          'SBC': 'o',
+          'SBCOld': 'o',
+          'SBCOldScatter': 'o',        
+          'SBCOldScatterPlot': 'o',        
 
-    # Sigmas
-    '1SigmaLower': 'o',
-    '2SigmaLower': 'o',
-    '3SigmaLower': 'o',
-    '3SigmaLowerStrange': 'o',
-    '1SigmaHigher': 'o',
-    '2SigmaHigher': 'o',
-    '3SigmaHigher': 'o',
+          'SBCScatter': 'o',        
+          'SBCTrueScatterPlot': 'o',  
+          'SBCFalseScatterPlot':'o',  
+          'SBCYoungScatter': 'o',
+          'SBCYoungScatterPlot': 'o',
+          'GAMAScatter': '*',
+          'GAMARdeScatter': '*',
 
-    'TNGrage': '.',
+          'SBCYoung': 'o',
+          
+          # Compact
+          'Compact': 'o',
+          'CompactScatter': 'o',        
+          'CompactTrueScatterPlot': 'o',  
+          'CompactFalseScatterPlot':'o',  
+          'CompactYoungScatter': 'o',
+          'CompactYoungScatterPlot': 'o',
 
+          'CompactYoung': 'o',
+          
+          'TDGCentral': 'o',
+          'TDGSatellite': 'o',
+          
+          'TDGCentralScatterPlot': 'o',
+          'TDGSatelliteScatterPlot': 'o',
+          
+          #TNG
+          'TNGrage': '.',
+          'TNGrageScatter': '.', 
+          'SBCGama': 'o',
+          'SBCGamaScatter': 'o', 
+          
+          'MBCGama': 'D',
+          'MBCGamaScatter': 'D', 
+          
+          'NormalGama': '^',
+          'NormalGamaScatter': '^', 
+          
+          
+          #Badfçag
+          'BadFlag': 'x',
+          'BadFlagScatter': 'x',
+          'BadFlagScatterPlot': 'x',
+          
+          #Others
+          'Selected': 'o',
+          'SelectedScatter': 'o',
+          'SelectedSatelliteScatter': 'o',
+          'SelectedSatelliteScatterPlot': 'o',
+          'SelectedSatellite': 'o',
+          'MajorScatter': 'o',
+          'IntermediateScatter': 's',
+          'MinorScatter': '^',
+          'Major': 'o',
+          'Intermediate': 's',
+          'Minor': '^',
+          
+          'TrueScatter': 'o',
+          'FalseScatter': 'o',
 
-
+         
     None: 'linear'
 
 }
 
 colors = {  # Compact
-    'Compact': 'tab:blue',
-    'CompactSubhaloHalfmassRadType4': 'tab:blue',
-    'CompactSubhaloHalfmassRadType0': 'darkblue',
+          'Normal': 'darkorange', 
+          'NormalCentral': 'darkorange',
+          'NormalSatellite': 'darkorange',
+          'NormalSatelliteProfile': 'darkorange',
 
-    'CompactQuantile': 'black',
-    'CompactQuantileOld': 'black',
-    'CompactnBHOld': 'tab:blue',
-    'CompactYoung': 'purple',
-    'CompactYoungMedian': 'purple',
-    'CompactBHOld': 'tab:blue',
-    'CompactLosesBHOld':  'tab:blue',
-    'CompactEarlierInfall': 'tab:blue',
-    'CompactLosesBH': 'tab:blue',
-    'CompactBH': 'tab:blue',
-    'CompactWithoutBH': 'tab:blue',
-    'CompactnBHYoung':  'tab:blue',
-    'CompactSatellite':  'tab:blue',
-    'CompactSatelliteMedian': 'mediumblue',
-    'CompactCentral':  'tab:blue',
-    'CompactCentralMedian': 'mediumblue',
-    'CompactSatelliteAll':  'tab:blue',
-    'CompactCentralAll':  'tab:blue',
-    'CompactOldSatelliteAll':  'tab:blue',
-    'CompactOldCentralAll':  'tab:blue',
-    'CompactMedian': 'mediumblue',
-    'CompactEarlierInfallMedian': 'mediumblue',
+          'NormalTrue': 'darkorange',
+          'NormalFalse': 'darkorange',
+          'NormalCentralError': 'tab:orange', 
+          'NormalSatelliteError': 'tab:orange', 
+          'NormalSatelliteFalseError': 'tab:orange', 
 
-    # Normal
-    'ControlSample': 'tab:orange',
-    'ControlSampleSubhaloHalfmassRadType4': 'tab:orange',
-    'ControlSampleSubhaloHalfmassRadType0': 'red',
-    'ControlSampleMedian': 'darkorange',
-    'ControlSampleSatelliteMedian': 'darkorange',
-    'ControlSampleCentralMedian': 'darkorange',
-    'Normal': 'tab:orange',
-    'NormalQuantile': 'tab:orange',
-    'NormalQuantileOld': 'tab:orange',
-    'NormalnBHOld': 'tab:orange',
-    'NormalBHOld': 'tab:orange',
-    'NormalLosesBHOld':  'tab:orange',
-    'NormalSatellite':  'tab:orange',
-    'NormalCentral':  'tab:orange',
-    'NormalSatelliteAll':  'tab:orange',
-    'NormalCentralAll':  'tab:orange',
-    'NormalOldSatelliteAll':  'tab:orange',
-    'NormalOldCentralAll':  'tab:orange',
-    'ControlSamplenBHOld': 'tab:orange',
-    'ControlSampleBHOld': 'tab:orange',
-    'ControlSampleLosesBHOld':  'tab:orange',
-    'ControlSampleSatellite':  'tab:orange',
-    'ControlSampleCentral':  'tab:orange',
-    'ControlSampleSatelliteAll':  'tab:orange',
-    'ControlSampleCentralAll':  'tab:orange',
-    'ControlSampleOldSatelliteAll':  'tab:orange',
-    'ControlSampleOldCentralAll':  'tab:orange',
-    'ControlSampleBH': 'tab:orange',
-    'ControlSampleWithoutBH': 'tab:orange',
+          'NormalScatter': 'darkorange',  
+          'NormalScatterPlot': 'darkorange', 
+          'NormalTrueScatterPlot': 'darkorange',
+          'NormalFalseScatterPlot':'darkorange',
+          'NormalLegend': 'darkorange', 
+          'NormalError': 'tab:orange', 
+          'NormalWBH': 'darkorange',
+            'NormalSatelliteTrue': 'darkorange',
+            'NormalTrueScatterPlot': 'darkorange',
+            'NormalSatelliteFalse': 'darkorange',
 
-    'WithoutBH': 'blue',
-    'BH': 'red',
+          
+          # MBC
+          'MBC': 'royalblue', 
+          'MBCCentral': 'royalblue',
+          'MBCSatellite': 'royalblue',
+          'MBCTrue': 'royalblue',
+          'MBCFalse': 'royalblue',
+          'MBCSatelliteFalse': 'royalblue',
+          'MBCSatelliteTrue': 'royalblue',
+          'MBCTrueScatterPlot': 'royalblue',
+          'MBCFalseScatterPlot':'royalblue',
+          'MBCSatelliteError': 'tab:blue',
+          'MBCSatelliteFalseError': 'tab:blue',
 
-    # Diffuse
-    'Diffuse': 'tab:green',
-    'DiffusenBHOld': 'tab:green',
-    'DiffuseBHOld': 'tab:green',
-    'DiffuseLosesBHOld':  'tab:green',
-    'DiffuseSatellite': 'tab:green',
-    'DiffuseCentral': 'tab:green',
-    'DiffuseSatelliteAll': 'tab:green',
-    'DiffuseCentralAll': 'tab:green',
-    'DiffuseOldSatelliteAll': 'tab:green',
-    'DiffuseOldCentralAll': 'tab:green',
-    'DiffuseMedian': 'darkgreen',
+          'MBCCentralError': 'tab:blue',
+          'MBCError': 'tab:blue',
+          'MBCLegend': 'royalblue', 
+          'MBCScatter': 'royalblue', 
+          'MBCScatterPlot': 'royalblue', 
+          
+          'MBCWBH': 'royalblue',
+          
+          
+          # Diffuse
+          'Diffuse': 'royalblue', 
+          'DiffuseCentral': 'royalblue',
+          'DiffuseSatellite': 'royalblue',
+          'DiffuseTrue': 'royalblue',
+          'DiffuseFalse': 'royalblue',
+          'DiffuseSatelliteFalse': 'royalblue',
+          'DiffuseSatelliteTrue': 'royalblue',
+          'DiffuseTrueScatterPlot': 'royalblue',
+          'DiffuseFalseScatterPlot':'royalblue',
+          'DiffuseSatelliteError': 'tab:blue',
+          'DiffuseCentralError': 'tab:blue',
+          'DiffuseError': 'tab:blue',
+          'DiffuseLegend': 'royalblue', 
+          'DiffuseScatter': 'royalblue', 
+          'DiffuseScatterPlot': 'royalblue', 
+          'DiffuseBH': 'royalblue',
+          'DiffuseWBH': 'royalblue',
+          
+          
+          # SBC
+          'SBC': 'forestgreen',
+          
+          'SBCOld': 'forestgreen',
+          'SBCOldScatter': 'forestgreen',    
+          'SBCOldScatterPlot': 'forestgreen',    
 
-    # Sigmas
-    '1SigmaLower': 'darkgreen',
-    '2SigmaLower': 'limegreen',
-    '3SigmaLower': 'lawngreen',
-    '3SigmaLowerStrange': 'lawngreen',
-    '1SigmaHigher': 'darkred',
-    '2SigmaHigher': 'red',
-    '3SigmaHigher': 'salmon',
+          'SBCCentral': 'forestgreen',
+          'SBCSatellite': 'forestgreen',
+          
+          'SBCTrue': 'forestgreen',
+          'SBCFalse': 'forestgreen',
+          'SBCSatelliteFalse': 'forestgreen',
+          'SBCSatelliteTrue': 'forestgreen',
+          
+          'SBCTrueScatterPlot': 'forestgreen',
+          'SBCFalseScatterPlot':'forestgreen',
+          
+          'SBCWBH': 'royalblue',
 
-    '0': 'darkred',
-         '1': 'red',
-         '2': 'salmon',
-         '3': 'darkorange',
-         '4': 'lawngreen',
-         '5': 'darkgreen',
-         '6': 'darkcyan',
-         '7':  'royalblue',
-         '8': 'darkblue',
-         '9': 'purple',
+           'SBCBH': 'forestgreen',
+           'MBCBH': 'royalblue',
+           'NormalBH': 'darkorange',
+           
+           'SBCWithoutBH': 'forestgreen',
+           'MBCWithoutBH': 'royalblue',
+           'NormalWithoutBH': 'darkorange',
+           
+           'SBCBHError': 'tab:green',
+           'MBCBHError': 'tab:blue',
+           'NormalBHError': 'tab:orange',
+           
+           'SBCWithoutBHError': 'tab:green',
+           'MBCWithoutBHError': 'tab:blue',
+           'NormalWithoutBHError': 'tab:orange',
+          
+          'SBCCentralError': 'tab:green',
+          'SBCSatelliteError': 'tab:green',
+          'SBCSatelliteFalseError': 'tab:green',
+
+          'SBCScatter': 'forestgreen',
+          'SBCScatterPlot': 'forestgreen',
+          'SBCError': 'tab:green',
+          'SBCLegend': 'forestgreen',
+          'SBCScatter': 'forestgreen', 
+          'GAMAScatter': 'black',
+          'GAMARdeScatter': 'red',
+
+          
+          'SBCYoungScatter': 'lime',
+          'SBCYoungScatterPlot': 'lime',
+
+          'SBCYoung': 'lime',
+          
+          # Compact
+          'Compact': 'forestgreen',
+          'CompactCentral': 'forestgreen',
+          'CompactSatellite': 'forestgreen',
+          'CompactTrue': 'forestgreen',
+          'CompactFalse': 'forestgreen',
+          'CompactSatelliteFalse': 'forestgreen',
+          'CompactSatelliteTrue': 'forestgreen',
+          
+          'CompactTrueScatterPlot': 'forestgreen',
+          'CompactFalseScatterPlot':'forestgreen',
+          
+          'CompactBH': 'royalblue',
+          'CompactWBH': 'royalblue',
 
 
-    'All': 'grey',
-    'TNGrage': 'grey',
+          
+          'CompactCentralError': 'tab:green',
+          'CompactSatelliteError': 'tab:green',
+          'CompactScatter': 'forestgreen',
+          'CompactScatterPlot': 'forestgreen',
+          'CompactError': 'tab:green',
+          'CompactLegend': 'forestgreen',
+          'CompactScatter': 'forestgreen', 
+          'CompactYoungScatter': 'lime',
+          'CompactYoungScatterPlot': 'lime',
 
-    None: 'black'
+          'CompactYoung': 'lime',
+          
+          'TDGCentral': 'lime',
+          'TDGSatellite': 'lime',
+          'TDGCentralScatterPlot': 'lime',
+          'TDGSatelliteScatterPlot': 'lime',
+          
+          #TNG
+          'All': 'grey',
+          'TNGrage': 'grey',
+          'TNGrageScatter': 'grey', 
+          
+          'TNGGama': 'black',
+          'TNGGamaScatter': 'black', 
+          
+          'SBCGama': 'black',
+          'SBCGamaScatter': 'black', 
+          
+          'MBCGama': 'black',
+          'MBCGamaScatter': 'black', 
+          
+          'NormalGama': 'black',
+          'NormalGamaScatter': 'black', 
+          
+          #Badfçag
+          'BadFlag': 'black',
+          'BadFlagScatter': 'black',
+          'BadFlagScatterPlot': 'black',
+          
+          #Others
+          'Selected': 'none',
+          'SelectedScatter': 'none',
+          'SelectedSatelliteScatter': 'none',
+          'SelectedSatelliteScatterPlot': 'none',
+          'SelectedSatellite': 'none',
+          'GMM': 'red',
+          'BH': 'red',
+          'WithoutBH': 'blue',
+          'BHMedian': 'black',
+          'WithoutBHMedian': 'black',
+          
+          'BHProfile': 'black',
+          'WBH': 'black',
+          
+          
+          'MajorScatter': 'black',
+          'IntermediateScatter': 'black',
+          'MinorScatter': 'black',
+          'Major': 'black',
+          'Intermediate': 'black',
+          'Minor': 'black',
+                 
+          'True':'red',
+          'TrueCompare':'red',
+
+          'HigherFivePericenterlowest':'blue',
+
+          'False': 'blue',
+          'SatelliteTrue':'red',
+          'SatelliteFalse':  'blue',
+          'TrueScatter': 'none',
+          'FalseScatter': 'black',
+          
+          'TrueLegend': 'none',
+          'FalseLegend': 'black',
+          'TrueProfile':'black',
+          'FalseProfile': 'black',
+        #Random
+        
+        '0': 'orangered',
+        '1': 'chocolate',
+        '2': 'salmon',
+        '3': 'crimson',
+        '4': 'darkviolet',
+        '5': 'royalblue',
+        '6': 'green',
+        '7':  'lime',
+        '8': 'brown',
+        '9': 'lawngreen',
+        '10': 'dodgerblue',
+        '11': 'steelblue',
+        '12':  'indigo',
+        '13': 'magenta',
+        '14': 'gold',
+    
+        None: 'black'
 
 }
 
 capstyles = {  # Compact
     'CompactCentral':  'round',
     'ControlSampleCentral':  'round',
-    'Central':  'round',
+    'ControlSampleScatter': 'round',
+
+    #'SBCCentral':  'round',
+    #'Central':  'round',
+    #'Centrals': 'round',
+    'DiffuseCentral': 'round',
+    #'MBCCentral': 'round',
+    #'NormalCentral': 'round',
 
     'SubhaloMassInRadType1':  'round',
     'SubhaloMassType1': 'round',
     'MassType1Normalize': 'round',
     'DeltaMassType1Normalize': 'round',
+    'SubhaloHalfmassRadType1': 'round',
     'SubhalosSFRwithinRadandAll': 'round',
     'LastMinorMerger': 'round',
+    'StellarMassFromCompletedMergersMinorAll': 'round',
+    
+
+    'DMMassNormalized': 'round',
+ 
+    'SBCFalse': 'round',
+    'CompactCentral':  'round',
+
+    'CompactBH': 'round',
+    'CompactFalse': 'round',
+
+
+    'MBCFalse': 'round',
+    
+    
+    'NormalFalse': 'round',
+    'ExMassType1Evolution': 'round',
+    'SBCBH': 'round',
+    'MBCBH': 'round',
+    'NormalBH': 'round',
+
 
     None: 'solid',
 
@@ -2983,20 +3562,98 @@ lines = {  # Compact
     'CompactWithoutBH': 'solid',
     'CompactLosesBH':  (0, (1, 10)),
     'CompactnBHYoung': (0, (1, 2)),
-    'CompactSatellite': (0, (10, 8)),
-    'CompactEarlierInfall': (0, (7, 5)),
+
     'CompactCentral':  (0,(0.1,2)),
+    'CompactSecondary': 'solid',
+    'CompactMain': 'solid',
+    # SBC
+    'GMM': 'solid',
+    'Selected': 'solid',
+    'SelectedSatellite': 'solid',
+    'SelectedSatelliteScatter': 'solid',
+
+      'SBC': 'solid',
+      'SBCOld': 'solid',
+      'SBCOldScatterPlot': 'solid',
+
+      'SBCnBHOld': 'solid',
+      'SBCQuantile': 'solid',
+      'SBCQuantileOld': 'solid',
+      'SBCYoung': 'solid',
+      'SBCBHOld': (0, (6, 5)),
+      'SBCLosesBH':  (0, (1, 10)),
+      'SBCnBHYoung': (0, (1, 2)),
+      'SBCSatellite': (0, (11, 4)),
+      'SBCSatelliteFalse': 'solid',
+
+      'SBCCentral':  'solid',
+      
+      'SBCEarlierInfall': (0, (10, 8)),
+      'SBCRecentInfall': (0,(0.1,2)),
+      
+      'SBCTrue': (0, (10, 8)),
+      'SBCFalse': 'solid',
+      'SBCSatelliteTrue': (0, (10, 8)),
+      'SBCSatelliteTrueAll': (0, (10, 8)),
+      
+      'Compact': 'solid',
+      'CompactnBHOld': 'solid',
+      'CompactQuantile': 'solid',
+      'CompactQuantileOld': 'solid',
+      'CompactYoung': 'solid',
+      'CompactBHOld': (0, (6, 5)),
+      'CompactLosesBH':  (0, (1, 10)),
+      'CompactnBHYoung': (0, (1, 2)),
+      'CompactSatellite': (0, (11, 4)),
+      'CompactCentral':  (0,(0.1,2)),
+      
+      'CompactEarlierInfall': (0, (10, 8)),
+      'CompactRecentInfall': (0,(0.1,2)),
+      
+      'CompactTrue': (0, (10, 8)),
+      'CompactFalse': 'solid',
+      'CompactSatelliteTrue': (0, (10, 8)),
+      'CompactSatelliteTrueAll': (0, (10, 8)),
+
+
+      'MBCTrue':(0, (10, 8)),
+      'MBCFalse': 'solid',
+      
+      'True':(0, (10, 8)),
+      'TrueCompare':'solid',
+
+      'HigherFivePericenterlowest':'solid',
+
+      'False': 'solid',
+      'SatelliteTrue':(0, (10, 8)),
+      'SatelliteFalse': 'solid',
+      'TrueProfile':(0, (10, 8)),
+      'FalseProfile': 'solid',
+      'NormalTrue': (0, (10, 8)),
+      'NormalFalse': 'solid',
+      
+      'MBCEarlierInfall':(0, (10, 8)),
+      'MBCRecentInfall': (0,(0.1,2)),
+      
+      'NormalEarlierInfall': (0, (10, 8)),
+      'NormalRecentInfall': (0,(0.1,2)),
+      
+      'EarlierInfall': (0, (10, 8)),
+      'RecentInfall': (0,(0.1,2)),
+      
+      
+      'SBCBH': 'solid',
+      'NormalBH': 'solid',
+      
+      'SBCWithoutBH': (0, (11, 4)),
+      'NormalWithoutBH':(0, (11, 4)),
+      
+      'BHProfile': (0,(0.1,2)),
+      'WBH': (0, (5, 2)),
+
 
     # Normal
     'ControlSample': 'solid',
-    'Normal': 'solid',
-    'NormalnBHOld': 'solid',
-    'NormalQuantile': 'solid',
-    'NormalQuantileOld': 'solid',
-    'NormalBHOld': (0, (6, 5)),
-    'NormalLosesBHOld': (0, (5, 2, 1, 2)),
-    'NormalSatellite': 'dashed',
-    'NormalCentral':  'dotted',
     'ControlSamplenBHOld': 'solid',
     'ControlSampleBHOld': (0, (6, 5)),
     'ControlSampleLosesBHOld': (0, (5, 2, 1, 2)),
@@ -3004,17 +3661,95 @@ lines = {  # Compact
     'ControlSampleCentral':  (0,(0.1,2)),
     'ControlSampleBH': 'dashed',
     'ControlSampleWithoutBH': 'solid',
+    'ControlSampleScatter': 'solid',
+
+    
+    'Normal': 'solid',
+    'NormalnBHOld': 'solid',
+    'NormalBHOld': (0, (6, 5)),
+    'NormalLosesBHOld': (0, (5, 2, 1, 2)),
+    'NormalSatellite': (0, (11, 4)),
+    'NormalSatelliteFalse': 'solid',
+
+
+    'NormalSatelliteProfile': 'solid',
+
+    'NormalCentral':  'solid',
+    
+    'TDGCentral': 'solid',
+    'TDGSatellite': 'solid',
+    
+    'Median': 'solid',
+    'MediannBHOld': 'solid',
+    'MedianBHOld': (0, (6, 5)),
+    'MedianLosesBHOld': (0, (5, 2, 1, 2)),
+    'MedianSatellite': (0, (10, 8)),
+    'MedianCentral':  (0,(0.1,2)),
+    'MedianBH': 'dashed',
+    'MedianWithoutBH': 'solid',
+    
+    'NormalSatelliteProfile':  'solid',
+    'SBCSatelliteProfile':  'solid',
+    'MBCSatelliteProfile':  'solid',
+    'NormalCentralProfile':  'solid',
+    'SBCCentralProfile':  'solid',
+    'MBCCentralProfile':  'solid',
+
+    'SBCSatelliteTrueProfile':  (0, (11, 4)),
+    'SBCSatelliteFalseProfile':  'solid',
+    
+    'CompactSatelliteProfile':  'solid',
+    'CompactCentralProfile':  'solid',
+    'MBCCentralProfile':  'solid',
+
+    'CompactSatelliteTrueProfile':  (0, (11, 4)),
+    'CompactSatelliteFalseProfile':  'solid',
+    
+    'MBCSatelliteTrueProfile':  (0, (11, 4)),
+    'MBCSatelliteTrue':  (0, (11, 4)),
+    'MBCSatelliteFalse':  'solid',
+
+
+    'MBCSatelliteFalseProfile':  'solid',
+    
+    'NormalSatelliteTrueProfile':  (0, (11, 4)),
+    'NormalSatelliteTrue':  (0, (11, 4)),
+    'NormalSatelliteFalseProfile':  'solid',
+    
 
     'BH': 'dashed',
     'WithoutBH': 'solid',
+    
+    
+    'BHMedian': 'solid',
+    'WithoutBHMedian':(0, (11, 4)),
+    
+    # MBC
+    'MBC': 'solid',
+    'MBCnBHOld': 'solid',
+    'MBCBHOld': (0, (6, 5)),
+    'MBCLosesBHOld': (0, (5, 2, 1, 2)),
+    'MBCSatellite': (0, (11, 4)),
+    'MBCCentral': 'solid',
+    'MBCMedian': 'solid',
+    'MBCBH': 'solid',
+    'MBCWithoutBH': (0, (11, 4)),
+    
+    # Diffuse
+    'Diffuse': 'solid',
+    'DiffusenBHOld': 'solid',
+    'DiffuseBHOld': (0, (6, 5)),
+    'DiffuseLosesBHOld': (0, (5, 2, 1, 2)),
+    'DiffuseSatellite': (0, (11, 4)),
+    'DiffuseCentral': (0,(0.1,2)),
+    'DiffuseMedian': 'solid',
 
     # Diffuse
     'Diffuse': 'solid',
     'DiffusenBHOld': 'solid',
     'DiffuseBHOld': (0, (6, 5)),
     'DiffuseLosesBHOld': (0, (5, 2, 1, 2)),
-    'DiffuseSatellite': 'dashed',
-    'DiffuseCentral': 'dotted',
+    'DiffuseCentral': (0,(0.1,2)),
     'DiffuseMedian': 'solid',
 
 
@@ -3031,8 +3766,12 @@ lines = {  # Compact
 
     'All': 'solid',
     'TNGrage': 'solid',
-    'Satellite': (0, (10, 8)),
-    'Central':  (0,(0.1,2)),
+    'Satellite': (0, (5, 2)),
+    'Satellites': (0, (5, 2)),
+
+    'Central':  'solid',
+    'Centrals':'solid',
+
 
 
     # Masses
@@ -3042,6 +3781,18 @@ lines = {  # Compact
     'SubhaloMassType0': (0, (10, 8)),
     'SubhaloMassType1': (0,(0.1,2)),
     'SubhaloMassType4': 'solid',
+    
+    'GasMassNormalized':  (0, (10, 8)),
+
+    'DMMassNormalized': (0,(0.1,2)),
+
+    'StarMassNormalized': 'solid',
+    
+    
+    'SubhaloHalfmassRadType0': (0, (10, 8)),
+    'SubhaloHalfmassRadType1': (0,(0.1,2)),
+    'SubhaloHalfmassRadType4': 'solid',
+    
     'MassType0Normalize': (0, (10, 8)),
     'MassType1Normalize': (0,(0.1,2)),
     'MassType4Normalize': 'solid',
@@ -3054,63 +3805,376 @@ lines = {  # Compact
     'MassInNormalize':  (0, (10, 8)),
     'MassExNormalizeAll':  (0, (10, 8)),
     'MassInNormalizeAll':  (0, (10, 8)),
+    
+    'ExMassEvolution':  'solid',
+    'ExMassType0Evolution':  (0, (10, 8)),
+    'ExMassType1Evolution':  (0,(0.1,2)),
+    'ExMassType4Evolution':  'solid',
+
+    
+    'ExSubhaloMassType0':  (0, (10, 8)),
+    'ExSubhaloMassType1':  (0,(0.1,2)),
+    'ExSubhaloMassType4':  'solid',
 
     # sSFR
     'SubhalosSFRinHalfRad': 'solid',
     'SubhalosSFRinRad': 'solid',
     'SubhalosSFRwithinHalfandRad': (0, (10, 8)),
     'SubhalosSFRwithinRadandAll': (0,(0.1,2)),
-    'LastMerger': 'solid',
-    'LastMajorMerger': (0, (10, 8)),
+    'LastMerger': (0, (10, 8)), 
+    'LastMajorMerger': 'solid',
     'LastMinorMerger': (0,(0.1,2)),
+
+
+    'MergerTotalRate':  'solid',
+    'MinorMergerTotalRate': (0, (10, 8)),
+    'MajorMergerTotalRate':(0,(0.1,2)),
+    
+    'StellarMassFromFlybys':  (0, (10, 8)), 
+    'StellarMassFromCompletedMergersMajor':'solid',
+        'StellarMassFromCompletedMergersMinorAll':(0,(0.1,2)),
+        
+    'r_over_R_Crit200': 'solid',
+
 
     None: 'solid',
 
 }
 
 linesthicker = {
-    'CompactQuantile': 1.8,
-    'CompactQuantileOld': 1.8,
-    'NormalQuantile': 1.8,
-    'NormalQuantileOld': 1.8,
-    'CompactCentral':  1.8,
-    'ControlSampleCentral':1.8,
-    'Central':1.8,
+    'Normal': 1.1, 
+    'NormalBH': 1.1, 
+    'NormalWithoutBH': 1.1, 
+
+    'NormalCentral':  1.1,
+    'NormalSatellite': 1.1,
+    'NormalSatelliteFalse': 1.1,
+
+    'NormalLegend': 0.8, 
+    'NormalScatter': 0.5, 
+    'NormalScatterPlot': 0.8, 
+    'NormalTrueScatterPlot': 0.8, 
+    'NormalFalseScatterPlot': 0,
+    
+    # MBC
+    'MBC': 1.1, 
+    'MBCCentral':  1.1,
+    'MBCSatellite': 1.1,
+    'MBCSatelliteFalse': 1.1,
+    
+    'MBCBH': 1.1, 
+    'MBCWithoutBH': 1.1,
+
+    'MBCLegend': 0.8, 
+    'MBCScatter': 0.5, 
+    'MBCScatterPlot': 0.8, 
+    'MBCTrueScatterPlot': 0.8, 
+    'MBCFalseScatterPlot': 0,
+    
+    # Diffuse
+    'Diffuse': 1.1, 
+    'DiffuseCentral': 1.7,
+    'DiffuseSatellite': 1.1,
+    'DiffuseLegend': 0.8, 
+    'DiffuseScatter': 0.5, 
+    'DiffuseScatterPlot': 0.8, 
+    'DiffuseTrueScatterPlot': 0.8, 
+    'DiffuseFalseScatterPlot': 0,
+    
+    # SBC
+    'SBC': 1.1, 
+    'SBCOld': 1.1,
+    'SBCOldScatterPlot': 1.1,
+
+    'SBCBH': 1.1, 
+    'SBCWithoutBH': 1.1,
+    'SBCCentral':  1.1,
+    'SBCSatellite': 1.1,
+    'SBCSatelliteFalse': 1.1,
+
+    'SBCScatter': 0.8, 
+    'GAMAcatter': 0.8, 
+    'GAMARdecatter': 0.8, 
+
+
+    'SBCTrueScatterPlot': 0.8, 
+    'SBCFalseScatterPlot': 0,
+    'SBCLegend': 0.8, 
+    'SBCYoungScatter': 0.5, 
+    'SBCYoungScatterPlot': 0.8, 
+
+    'SBCYoung': 1.1, 
+    'SBCYoungLegend': 0.8, 
+    
+    # Compact
+    'Compact': 1.1, 
+    'CompactCentral': 2.4,
+    'CompactSatellite': 2,
+    'CompactScatter': 0.8, 
+    'CompactTrueScatterPlot': 0.8, 
+    'CompactFalseScatterPlot': 0,
+    'CompactLegend': 0.8, 
+    'CompactYoungScatter': 0.5, 
+    'CompactYoungScatterPlot': 0.8, 
+
+    'CompactYoung': 1.1, 
+    'CompactYoungLegend': 0.8, 
+    
+    'TDGCentral': 1.1, 
+    'TDGSatellite': 1.1, 
+    
+    #TNG
+    'TNGrage': 1.5,
+    'TNGrageScatter': 0.5, 
+    
+    #Badfçag
+    'BadFlag': 2,
+    'BadFlagLegend': 3,
+    'BadFlagScatter': 1.2,
+    'BadFlagScatterPlot': 2,
+    
+    #Others
+    'Selected': 0.8,
+    'SelectedScatter': 0.8,
+    'SelectedSatelliteScatter': 0.2, 
+    'SelectedSatelliteScatterPlot': 0.8,
+    'SelectedSatellite': 0.8,
+
+
+    
+    #Others
+    'CentralLegend': 0.8,
+    'Central': 0.8,
+    'Centrals': 0.8,
+    
+    'BHProfile':  2.,
+    'WBH':  2.,
 
     'SubhaloMassInRadType1': 1.8,
     'SubhaloMassType1': 1.8,
+    'DMMassNormalized': 1.8,
+
+    'SubhaloHalfmassRadType1': 1.8,
     'MassType1Normalize': 1.8,
+    'ExMassType1Evolution': 1.8,
+    'ExSubhaloMassType1': 1.8,
+
     'DeltaMassType1Normalize': 1.8,
     'SubhalosSFRwithinRadandAll': 1.8,
     'LastMinorMerger': 1.8,
+    'StellarMassFromCompletedMergersMinorAll': 1.8,
+    
 
 }
 
+msize = {
+    'Normal': 10, 
+    'NormalLegend': 5, 
+    'NormalScatterLegend': 8,
+
+    'NormalScatter': 10, 
+    'NormalScatterPlot': 15, 
+    'NormalTrueScatterPlot': 15,
+    'NormalFalseScatterPlot': 15, 
+
+
+    
+    # MBC
+    'MBC': 10, 
+    'MBCLegend': 8, 
+    'MBCScatter': 22, 
+    'MBCScatterPlot': 22, 
+    'MBCTrueScatterPlot': 20,
+    'MBCFalseScatterPlot': 20,
+    
+    'MBCScatterLegend': 8,
+
+    
+    # MBC
+    'Diffuse': 10, 
+    'DiffuseLegend': 8, 
+    'DiffuseScatterLegend': 8,
+
+    'DiffuseScatter': 20, 
+    'DiffuseScatterPlot': 20, 
+    'DiffuseTrueScatterPlot': 20,
+    'DiffuseFalseScatterPlot': 20,
+    
+    
+    # SBC
+    'SBC': 10,
+    'SBCScatter': 22,
+    'SBCOld': 10,
+    'SBCOldScatter': 22,
+    'SBCOldScatterPlot': 22,
+
+    'GAMALegend': 8,
+
+    'GAMAScatter': 20,
+    'GAMAScatterPlot': 20,
+    'GAMAScatterLegend': 20,
+    
+    'GAMARdeLegend': 8,
+
+    'GAMARdeScatter': 20,
+    'GAMARdeScatterPlot': 20,
+    'GAMARdeScatterLegend': 20,
+
+    'SBCScatterPlot': 22,
+    'SBCTrueScatterPlot': 20,
+    'SBCFalseScatterPlot': 20,
+
+    'SBCLegend': 8,
+    'SBCScatterLegend': 8,
+    'SBCYoungScatter': 35,
+    'SBCYoungScatterPlot': 20,
+
+    'SBCYoung': 20, 
+    'SBCYoungLegend': 9, 
+    
+    # Compact
+    'Compact': 10,
+    'CompactScatter': 20,
+    'CompactScatterPlot': 20,
+    'CompactTrueScatterPlot': 20,
+    'CompactFalseScatterPlot': 20,
+
+    'CompactLegend': 8,
+    'CompactYoungScatter': 35,
+    'CompactYoungScatterPlot': 20,
+
+    'CompactYoung': 20, 
+    'CompactYoungLegend': 9, 
+    
+    'TDGCentral': 20,
+    'TDGSatellite': 20,
+    
+    'TDGCentralScatterPlot': 20,
+    'TDGSatelliteScatterPlot': 20,
+    
+    #TNG
+    'TNGrage': 20,
+    'TNGrageScatter': 20, 
+    'TNGrageScatterLegend': 7,
+    'TNGrageLegend': 7,
+    'TNGGama': 20,
+    'TNGGamaScatter': 20, 
+    'TNGGamaScatterLegend': 7,
+    
+    'SBCGama': 20,
+    'SBCGamaScatter': 7,
+    
+    'MBCGama': 20,
+    'MBCGamaScatter': 7,
+    
+    'NormalGama': 20,
+    'NormalGamaScatter': 7,
+    
+    'TNGGamaLegend': 7,
+    
+    #Badfçag
+    'BadFlag': 15,
+    'BadFlagLegend': 7,
+    'BadFlagScatter': 25,
+    'BadFlagScatterPlot': 15,
+    
+    #Others
+    'Selected': 6,
+     'SelectedLegend': 5,
+    'SelectedSatelliteScatter': 20,
+    'SelectedSatelliteScatterPlot': 10,
+    'SelectedSatellite': 10,
+    'MajorScatterLegend': 10,
+    'IntermediateScatterLegend': 10,
+    'MinorScatterLegend': 10,
+    'MajorLegend': 10,
+    'IntermediateLegend': 10,
+    'MinorLegend': 10,
+    
+    'TrueLegend': 12,
+    'FalseLegend': 12,
+
+  
+    }
+
 
 titles = {  # Classes
-    'CompactQuantile': 'Compact',
-    'CompactQuantileOld': 'Compact',
-    'Compact': 'Compact',
-    'CompactYoung': 'Compact \n Young',
-    'CompactEarlierInfall': 'Compact \n Earlier Infall',
-    'NormalQuantile': 'Normal',
-    'NormalQuantileOld': 'Normal',
-    'Normal': 'Normal',
-    'Diffuse': 'Diffuse',
+     # Compact
+    'Normal': 'Normals', 
+    'NormalScatter': 'Normals',  
+    
+    # MBC
+    'MBC': r'$\mathrm{Compacts_{MB}}$', 
+    'MBCScatter': r'$\mathrm{Compacts_{MB}}$',
+    
+    # SBC
+    'Diffuse': r'$\mathrm{Diffuses}$',
+    'SBC': r'$\mathrm{Compacts_{SB}}$',
+    'SBCScatter': r'$\mathrm{Compacts_{SB}}$',
+    'GAMAScatter': r'$\mathrm{GAMA}$',
+    'GAMARdeScatter': r'$\mathrm{GAMA}$',
+    'GAMARde': r'$\mathrm{GAMA}$',
+    'GAMARdeLegend': r'$\mathrm{GAMA}$',
+    'GAMARdeScatterLegend': r'$\mathrm{GAMA}$',
+
+
+    'SBCYoungScatter': 'Young \n Compacts$_\mathrm{SB}$',
+    'SBCYoung': 'Young \n Compacts$_\mathrm{SB}$',
+
+   # SBC
+   'Diffuse': r'$\mathrm{Diffuses}$',
+   'Compact': r'$\mathrm{Compacts}$',
+   'CompactScatter': r'$\mathrm{Compacts}$',
+   'CompactYoungScatter': 'Young \n Compacts',
+   'CompactYoung': 'Young \n Compacts',
+
+    
+    #TNG
+    'TNGrage': 'All\n galaxies',
+    'TNGrageScatter': 'All\n galaxies',
+    'TNGGama': 'TNG50',
+    'TNGGamaScatter': 'TNG50',
+    
+    'SBCGama': r'$\mathrm{Compacts_{SB}}$',
+    'SBCGamaScatter': r'$\mathrm{Compacts_{SB}}$',
+    
+    'MBCGama':r'$\mathrm{Compacts_{MB}}$',
+    'MBCGamaScatter': r'$\mathrm{Compacts_{MB}}$',
+    
+    'NormalGama': 'Normals', 
+    'NormalGamaScatter': 'Normals', 
+    
+    
+    #Badfçag
+    'BadFlag': 'Bad flags',
+    
+    #Others
+    'Selected': 'Selected',
+    'SelectedScatter': 'Selected',
+    'SelectedSatellite': 'Satellites',
+    
+    'True':r'$f_{\mathrm{DM}} \leq 0.7$',
+    'TrueCompare':r'$f_{\mathrm{DM}} \leq 0.7$',
+
+    'HigherFivePericenterlowest':'$N_\mathrm{pericenter} \geq 3$ \n and\n $(R/R_{200})_\mathrm{min} < 0.2$',
+
+    'False': r'$f_{\mathrm{DM}} > 0.7$',
+    'SatelliteTrue':r'Satellites $f_{\mathrm{DM}} \leq 0.7$',
+    'SatelliteFalse': r'Satellites $f_{\mathrm{DM}} > 0.7$',
+    'TrueProfile':r'$f_{\mathrm{DM}} \leq 0.7$',
+    'FalseProfile': r'$f_{\mathrm{DM}} > 0.7$',
+    
+    
+    
+      'EarlierInfall': 'Earlier Infall',
+      'RecentInfall': 'Recent Infall',
+
 
     'CompactSubhaloHalfmassRadType4': 'Compact, $r_{1/2}$',
     'CompactSubhaloHalfmassRadType0': 'Compact, $r_{1/2, \mathrm{gas}}$',
     'ControlSampleSubhaloHalfmassRadType4': 'Control \n Sample, $r_{1/2}$',
     'ControlSampleSubhaloHalfmassRadType0':  'Control \n Sample, $r_{1/2, \mathrm{gas}}$',
-    
-    'ControlSample': 'Control \n Sample',
 
-    # Status
-    'Satellite': 'Satellite',
-    'Central': 'Central',
-    'SatelliteAll': 'Satellite',
-    'CentralAll': 'Central',
-    'All': 'All',
 
     # Sigmas
     '1SigmaLower': '$5^\mathrm{th} - 32^\mathrm{th}$',
@@ -3122,15 +4186,18 @@ titles = {  # Classes
 
 
     # Status
-    'BH': 'With \n BH',
-          'nBH': 'Without \n BH',
-          'WithoutBH': 'Without\n  BH',
+    'BH': 'With  BH',
+    'nBH': 'Without  BH',
+    'BHMedian': 'With  BH',
+    'WithoutBHMedian': 'Without  BH',
 
-          'LosesBH': 'Loses BH',
+    'WBH': 'Without BH',
+    'WithoutBH': 'Without  BH',
+    'LosesBH': 'Loses BH',
 
-          'TNGrage': 'TNG50\n galaxies',
+          
 
-          # Masses
+    # Masses
     'SubhaloMassInRadType0': 'Gas',
     'SubhaloMassInRadType1':  'DM',
     'SubhaloMassType0': 'Gas',
@@ -3139,9 +4206,18 @@ titles = {  # Classes
     'MassType0Normalize': 'Gas',
     'MassType1Normalize': 'DM',
     'MassType4Normalize': 'Stellar',
+    'SubhaloMassType4': 'Stellar',
+    'SubhaloHalfmassRadType0': 'Gas',
+    'SubhaloHalfmassRadType1': 'DM',
+    'SubhaloHalfmassRadType4': 'Stellar',
     'DeltaMassType0Normalize': 'Gas',
     'DeltaMassType1Normalize': 'DM',
     'DeltaMassType4Normalize': 'Stellar',
+    
+    'ExMassEvolution': 'Total',
+    'ExMassType0Evolution': 'Gas',
+    'ExMassType1Evolution': 'DM',
+    'ExMassType4Evolution': 'Stellar',
 
     # sSFR
     'SubhalosSFRinHalfRad': 'sSFR within $r_{1/2}$',
@@ -3150,53 +4226,82 @@ titles = {  # Classes
     'SubhalosSFRwithinRadandAll': 'sSFR in \n $r > 2r_{1/2}$',
     'StellarMassInSitu': 'In-situ',
     'StellarMassExSitu': 'Ex-situ',
-    'MassExNormalize':  'Normalize by \n $M_{\mathrm{ex - situ}, z = 0}$',
+    'MassExNormalize':  'By \n $M_{\mathrm{ex - situ}, z = 0}$',
     'MassInNormalize':  'In-situ',
-          'MassExNormalizeAll':  'Normalize by \n $M_{\star, z = 0}$',
-          'MassInNormalizeAll':  'Normalize by \n $M_{\star, z = 0}$',
-          'LastMerger': 'Last \n Merger',
-          'LastMinorMerger': 'Last Minor \n Merger',
-          'LastMajorMerger': 'Last Major \n Merger',
-
-
+    'MassExNormalizeAll':  'By $M_{\star, z = 0}$',
+    'MassInNormalizeAll':  'By $M_{\star, z = 0}$',
+    'LastMerger': 'Last Minor \n Merger',
+    'LastMinorMerger': 'Last intermediate \n Merger',
+    'LastMajorMerger': 'Last Major \n Merger',
+ 
+          
+   'StellarMassFromFlybys': 'Fly-bys',
+   'StellarMassFromCompletedMergersMajor': 'Major mergers',
+   'StellarMassFromCompletedMergersMinorAll': 'Minor + \n intermediate \n mergers',
+   
+   'MajorScatter': 'Major Merger',
+   'IntermediateScatter': 'Intermediate Merger',
+   'MinorScatter': 'Minor Merger',
+   'Major': 'Major Merger',
+   'Intermediate': 'Intermediate Merger',
+   'Minor': 'Minor Merger',
+          
 }
 
 
 limmax = {  # Masses
     'StellarMassFromCompletedMergers': 10.3,
-    'StellarMassFromCompletedMergersMajor': 10.3,
-    'StellarMassFromCompletedMergersMinor': 10.3,
-    'StellarMassFromCompletedMergersMinorAll': 10.3,
+    'StellarMassFromCompletedMergersMajor': 7.7,
+    'StellarMassFromCompletedMergersMinor': 7.7,
+    'StellarMassFromCompletedMergersMinorAll': 7.2,
     'StellarMassExSitu': 8.3,
     # Rads
-    'r_over_R_Crit200': 20.,
-    'r_over_R_Crit200_WithoutCorrection': 20.,
-    'MassType0Normalize': 1.3,
-    'MassType1Normalize':  1.3,
-    'MassType4Normalize':  5.2,
+    'r_over_R_Crit200': 50.,
+    #'r_over_R_Crit200_WithoutCorrection': 20.,
+    'r_over_R_Crit200Scatter': 50,
+
+    'MassType0Normalize': 1500.,
+    'MassType1Normalize':  90,
+    'MassType4Normalize':  4.,
+    'HalfRadNormalized': 7.,
     'MassExNormalize':  1.3,
     'MassInNormalize': 1.2,
-    'MassExNormalizeAll': 0.11,
-    'SubhaloMass': 12,
-    #'SubhaloMassInRadType4': 9.8,
-    # 'GroupNSubs': 90,
+    'MassExNormalizeAll': 0.06,
+    'MassExNormalizeAllScatter': 0.7,
+    'FracMassStarEx': 0.12,
+    'FracMassStarExScatter': 0.12,
 
-    'LastMajorMerger': 7,
-    'LastMinorMerger': 9.9,
-    'LastMerger': 14,
+    'SubhaloMass': 12,
+    'SubhaloMassInRadType4': 9.3,
+    'SubhaloMassInRadType4Scatter': 10.,
+
+    #'SubhaloHalfmassRadType4': 1.6,
+    #'SubhaloMassInRadType4': 9.8,
+    'GroupNSubs': 42,
+
+    'LastMajorMerger': 10,
+    'LastMinorMerger': 10,
+    'LastMerger': 10,
 
     'vOvervvirl': 1,
     # 'StellarMassExSitu': 8.5,
+    #'Group_M_Crit200_Central': 11.5,
+    #'Group_M_Crit200': 10.98,
 
     # Profiles
     'Age': 14.2,
-    'RadVelocity': 5,
-    'rad': 72,
+    'RadVelocity': 20,
+    'rad': 100,
     'sSFR': 2e-9,
+    'GFM_Metallicity_Zodot': 3.9,
+
+    'sSFRE': 2e-5,
+
     'SFR':  0.085,
     'Mstellar': 1e8,
     'MstellarCum': 1e10,
     'MstellarNorm': 1.1,
+    'NewLambda': 0.5,
 
     'Mgas': 1e8,
     'MgasCum':  1e10,
@@ -3208,11 +4313,79 @@ limmax = {  # Masses
 
     'SubhalosSFRinHalfRad': -7.9,
     'SubhalosSFRinRad': -7.9,
-    'SubhalosSFRwithinHalfandRad': -7.4,
-    'SubhalosSFRwithinRadandAll': -7.4,
+    'SubhalosSFRwithinHalfandRad': -7.7,
+    'SubhalosSFRwithinRadandAll': -7.7,
 
-    'MassTensorEigenVals': 0.91,
+    'MassTensorEigenVals': 1.1,
+    'MassTensorEigenValsNew': 1.1,
 
+    'DensityStar': 7e9,
+    'DensityGas': 5e8,
+    
+    'DensityStarOverR2':  5e8,
+    'DensityGasOverR2': 5e7,
+    'MinorMergerTotalRate': 2,
+    'MajorMergerTotalRate': 2,
+    'zBorn': 22,
+    'DMFracBorn': 1.02,
+    'DMFracBornScatter': 1.02,
+    'DMFrac': 1.02,
+    'DMFracScatter': 1.02,
+
+
+    'GasFracBorn': 1.02,
+    'StarFracBorn': 1.02,
+    
+    'GasFrac': 1.02,
+    'StarFrac': 1.02,
+
+    'MstarOverM200Scatter': 0.9,
+
+    'rOverR200Born': 300,
+    
+    'jProfile': 1.5e3,
+    'M200Normalized': 1.05,
+    'DMFracMaxTot': 1.02,
+    'DMFracMaxTotScatter': 1.02,
+    'DMFracMaxScatter': 1.02,
+
+    
+    'GasMassNormalizedScatter': 1.1,
+
+    'DMMassNormalizedScatter': 1.5,
+
+    'StarMassNormalizedScatter': 1.1,
+    
+    'FracGasMassScatter': 0.2,
+    'FracDMMassScatter': 1.1,
+    'FracStarMassScatter': 1.1,
+    
+    'GasMassNormalized': 1.1,
+
+    'DMMassNormalized': 1.1,
+
+    'StarMassNormalized': 1.1,
+    
+    'FracDMMass': 1.1,
+    
+    'SubhaloHalfmassRadType4Pericenter': -0.5,
+
+    'GasMassNormalizedPericenter': 0.008,
+
+    'DMMassNormalizedPericenter': 0.008,
+    
+    'StarMassNormalizedPericenter': 0.14,
+    
+    'zMedianMajor': 22,
+    'zMedianMerger': 22,
+    'zMedianMinor': 22,
+    
+    'zMajorMerger': 22,
+    'zMinorMerger': 22,
+    'zMeger': 22,
+    'zInfallMinPericenterScatter': 5,
+    'rOverR200MinScatter': 3,
+    'rOverR200MinTrueScatter': 3,
 
 }
 
@@ -3221,24 +4394,34 @@ limin = {  # Masses
     'StellarMassFromCompletedMergers': 4.3,
     'StellarMassFromCompletedMergersMajor': 4.3,
     'StellarMassFromCompletedMergersMinor': 4.3,
-    'StellarMassFromCompletedMergersMinorAll': 4.3,
+    'StellarMassFromCompletedMergersMinorAll': 4.1,
+    'SubhaloHalfmassRadType4': -0.7,
+    'SubhaloHalfmassRadType4Scatter': -0.9,
+    'SubhaloMassInRadType4': 8.3,
     #'StellarMassExSitu': 4.5,
     'MassType0Normalize': 0.01,
     'MassType1Normalize':   0.01,
-    'MassType4Normalize':  0.02,
+    'MassType4Normalize':  0.009,
     'MassInNormalize':  0.002,
-    'MassExNormalize':  0.002,
+    'MassExNormalize':  0.005,
     'MassExNormalizeAll': 0.0008,
+    'MassExNormalizeAllScatter': 0.0008,
     'SubhaloMass': 7.8,
     'MstellarCum': 2e6,
     #'SubhaloMassInRadType4': 7.8,
     'vOvervvirl': -1,
-    # 'GroupNSubs': 0.001,
-
+    'GroupNSubs': 1.1,
+    'NewLambda': 0.0,
+    'Group_M_Crit200_Central': 9.5,
+    'Group_M_Crit200': 9.2,
+    'FracMassStarEx': 0.005,
+    'FracMassStarExScatter': 0.005,
 
     # Rads
-    'r_over_R_Crit200': 0.4,
-    'r_over_R_Crit200_WithoutCorrection': 0.4,
+    'r_over_R_Crit200': 0.05,
+    'r_over_R_Crit200Scatter': 0.005,
+
+    #'r_over_R_Crit200_WithoutCorrection': 0.15,
 
     'LastMajorMerger': 0.4,
     'LastMinorMerger': 0.4,
@@ -3247,9 +4430,13 @@ limin = {  # Masses
 
     # Profiles
     'Age': 0.2,
-    'RadVelocity': -72,
-    'rad': 0.25,
-    'sSFR': 5e-13,
+    'RadVelocity': -80,
+    'rad': 0.101,
+    'sSFR': 5e-12,
+    'GFM_Metallicity_Zodot': 5e-2,
+
+    'sSFRE': 1e-14,
+
     'SFR':  1e-6,
     'Mstellar': 1e5,
 
@@ -3263,12 +4450,86 @@ limin = {  # Masses
     'joverR': 0,
     'Potential': -2e5,
 
-    'SubhalosSFRinHalfRad': -10.5,
-    'SubhalosSFRinRad': -10.5,
-    'SubhalosSFRwithinHalfandRad': -10.5,
-    'SubhalosSFRwithinRadandAll': -10.5,
+    'SubhalosSFRinHalfRad': -11.,
+    'SubhalosSFRinHalfRadScatter': -14.,
 
-    'MassTensorEigenVals': 0.35,
+    'SubhalosSFRinRad': -11.,
+    'SubhalosSFRwithinHalfandRad': -11.,
+    'SubhalosSFRwithinRadandAll': -11.,
+
+    'MassTensorEigenVals': 0.2,
+    'MassTensorEigenValsNew': 0.2,
+
+    
+    'DensityStar': 1e3,
+    'DensityGas': 1e3,
+    'DensityStarOverR2': 1e3,
+    'DensityGasOverR2': 5e4,
+
+    'MinorMergerTotalRate': 0.001,
+    'MajorMergerTotalRate': 0.001,
+    'zBorn' : 0.005,
+    'DMFrac': 0.0001,
+    'DMFracBorn': 0.0001,
+    'DMFracBornScatter': 0.0001,
+    'DMFracScatter': 0.0001,
+
+    'GasFracBorn': 0.0001,
+    'StarFracBorn': 0.0001,
+    'GasFrac': 0.0001,
+    'StarFrac': 0.0001,
+
+    'MstarOverM200Scatter': 0.0005,
+    'rOverR200Born': 0.1,
+    'HalfRadNormalized': 0.05,
+    
+    'jProfile': 8e1,
+    'M200Normalized': 0.09,
+    'DMFracMaxTot': 1e-4,
+    'DMFracMaxTotScatter':  1e-4,
+    
+    'DMFracMaxScatter': -0.02,
+
+    
+    'GasMassNormalizedScatter': -0.1,
+
+    'DMMassNormalizedScatter': 0.0007,
+
+    'StarMassNormalizedScatter': 0.05,
+    
+    'GasMassNormalized': 0.0005,
+
+    'DMMassNormalized': 0.0005,
+
+    'StarMassNormalized': 0.005,
+    
+    
+
+    'SubhaloHalfmassRadType4Pericenter': 0.2,
+
+    'GasMassNormalizedPericenter': 0.011,
+
+    'DMMassNormalizedPericenter': 0.011,
+
+    'StarMassNormalizedPericenter': 0.05,
+    
+    
+    'FracGasMassScatter': 0.0009,
+    'FracDMMassScatter': 0.09,
+    'FracStarMassScatter': 0.0009,
+    
+    'FracDMMass': 0.09,
+    
+    'zMedianMajor': 0.05,
+    'zMedianMerger': 0.05,
+    'zMedianMinor': 0.05,
+    
+    'zMajorMerger': 0.05,
+    'zMinorMerger': 0.05,
+    'zMeger': 0.05,
+    'zInfallMinPericenterScatter': 0.005,
+    'rOverR200MinScatter': 0.009,
+    'rOverR200MinTrueScatter': 0.009,
 
 
 }

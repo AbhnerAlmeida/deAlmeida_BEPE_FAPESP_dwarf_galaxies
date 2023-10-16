@@ -194,12 +194,13 @@ def extractWithCondition(sample, PATH='./data/', dfName=None, SampleName='Sample
 
         # Restricting the sample if sample is not 'All'
         if sample != 'All':
-            for name in ['Compact', 'Diffuse', 'Normal',  'ControlSample', 'HigherSize', 'LowerSize', 'HigherSigma', 'LowerSigma', '1SigmaLower', '2SigmaLower', '3SigmaLower', '1SigmaHigher', '2SigmaHigher', '3SigmaHigher']:
+            for name in ['Compact', 'Diffuse', 'Normal', 'BadFlag', 'SBC',  'MBC','TDGCentral','TDGSatellite' , 'ControlSample', 'HigherSize', 'LowerSize', 'HigherSigma', 'LowerSigma', '1SigmaLower', '2SigmaLower', '3SigmaLower', '1SigmaHigher', '2SigmaHigher', '3SigmaHigher']:
                 if name in sample:
                     df = df.loc[df[SampleName] == name]
 
             for name in ['Satellite', 'Central']:
-                if name in sample:
+                if name in sample and not 'TDG' in sample:
+
                     try:
                         df = df.loc[df.CentSat == name]
                     except:
@@ -207,18 +208,18 @@ def extractWithCondition(sample, PATH='./data/', dfName=None, SampleName='Sample
 
             for name in ['Young', 'Old']:
                 if name in sample and not ('YoungBH' in sample):
+
                     df = df.loc[df.Born == name]
             for name in ['EarlierInfall', 'IntermediateInfall', 'RecentInfall']:
                 if name in sample:
+
                     df = df.loc[df.InfallTime == name]
+                    
             for name in ['WithoutBH', 'LosesBH', 'BH']:
                 if name in sample and not ('OldBH' in sample or  'IntermediateBH' in sample or 'YoungBH' in sample):
-                    df = df.loc[df.BHSample == name]
-                    break
-            for name in ['OldBH', 'IntermediateBH', 'YoungBH', 'WithoutBH']:
-                if name in sample:
-                    df = df.loc[df.BHBorn == name]
 
+                    df = df.loc[df.BHStatus == name]
+                    break
     return df
 
 
